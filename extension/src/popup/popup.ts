@@ -1,41 +1,99 @@
 /**
  * Popup UI — Zeigt Listing-Daten, Preis-Chart und Standort-Score.
+ *
+ * Liest DIREKT aus chrome.storage.local statt über den Service Worker,
+ * da der Worker oft inaktiv ist wenn das Popup geöffnet wird.
  */
 
-import type { ListingStatus, TrackedListing, PortalStatistics, PriceChange, StandortScore } from "../types";
+import type { TrackedListing, PortalStatistics, PriceChange, StandortScore } from "../types";
 import { formatPrice, formatPriceChange, calculatePriceChange } from "../utils/diff";
+
+declare const __VERSION__: string;
+
+// ============================================================
+// Storage-Zugriff (direkt, ohne Service Worker)
+// ============================================================
+
+async function getAllListingsFromStorage(): Promise<TrackedListing[]> {
+  const all = await chrome.storage.local.get(null);
+  return Object.entries(all)
+    .filter(([key]) => key.includes(":") && !key.startsWith("geo_cache:"))
+    .map(([, value]) => value as TrackedListing);
+}
+
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    // Nur hostname + pathname, ohne query/hash/trailing-slash
+    return u.hostname + u.pathname.replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+}
+
+async function findListingForUrl(tabUrl: string): Promise<TrackedListing | null> {
+  const all = await getAllListingsFromStorage();
+  const target = normalizeUrl(tabUrl);
+
+  // Exakter Pfad-Match
+  let found = all.find((l) => normalizeUrl(l.url) === target);
+  if (found) return found;
+
+  // Fallback: ID aus URL extrahieren und damit suchen
+  const idMatch = tabUrl.match(/(\d{7,})/);
+  if (idMatch) {
+    const id = idMatch[1];
+    found = all.find((l) => l.id.endsWith(`:${id}`) || l.url.includes(id));
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function getStatisticsFromListings(listings: TrackedListing[]): PortalStatistics {
+  const stats: PortalStatistics = {
+    kleinanzeigen: 0,
+    "wg-gesucht": 0,
+    immowelt: 0,
+    immoscout: 0,
+    total: listings.length,
+  };
+  for (const l of listings) {
+    stats[l.portal]++;
+  }
+  return stats;
+}
 
 // ============================================================
 // Initialisierung
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url) return;
+  // Version anzeigen
+  setText("version-info", `v${__VERSION__}`);
 
-  // Parallel laden: aktuelle Anzeige + alle Listings + Statistik
-  const [statusResponse, allListings, stats] = await Promise.all([
-    sendMessage({ type: "GET_CURRENT_LISTING", url: tab.url }),
-    sendMessage({ type: "GET_ALL_LISTINGS" }),
-    sendMessage({ type: "GET_STATISTICS" }),
-  ]);
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  const status = statusResponse as ListingStatus | null;
-  if (status?.tracked && status.listing) {
-    renderCurrentListing(status.listing, status.priceChange);
+    // Alle Listings laden (direkt aus Storage)
+    const allListings = await getAllListingsFromStorage();
+    const stats = getStatisticsFromListings(allListings);
+
+    // Aktuelle Seite prüfen
+    if (tab?.url) {
+      const listing = await findListingForUrl(tab.url);
+      if (listing) {
+        const priceChange = calculatePriceChange(listing.priceHistory) ?? undefined;
+        renderCurrentListing(listing, priceChange);
+      }
+    }
+
+    renderRecentChanges(allListings);
+    renderStatistics(stats);
+  } catch (err) {
+    console.error("[SchweizerMakler] Popup Fehler:", err);
   }
-
-  renderRecentChanges(allListings as TrackedListing[]);
-  renderStatistics(stats as PortalStatistics);
 });
-
-// ============================================================
-// Message Helper
-// ============================================================
-
-function sendMessage(message: unknown): Promise<unknown> {
-  return chrome.runtime.sendMessage(message);
-}
 
 // ============================================================
 // Aktuelle Anzeige

@@ -30,8 +30,7 @@
     "default_title": "SchweizerMakler"
   },
   "background": {
-    "scripts": ["background/service-worker.js"],
-    "type": "module"
+    "scripts": ["background/service-worker.js"]
   },
   "content_scripts": [
     {

@@ -5,3 +5,6 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+*.png
+!extension/icons/*.png
+Fehler.png

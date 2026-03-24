@@ -1,8 +1,11 @@
 const path = require("path");
+const fs = require("fs");
+const webpack = require("webpack");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
 module.exports = (env = {}) => {
   const isFirefox = env.target === "firefox";
+  const version = fs.readFileSync(path.join(__dirname, "..", "VERSION"), "utf-8").trim();
 
   return {
     entry: {
@@ -32,6 +35,9 @@ module.exports = (env = {}) => {
       ],
     },
     plugins: [
+      new webpack.DefinePlugin({
+        __VERSION__: JSON.stringify(version),
+      }),
       new CopyWebpackPlugin({
         patterns: [
           {

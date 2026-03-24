@@ -152,7 +152,17 @@ async function handlePopupMessage(
   switch (message.type) {
     case "GET_CURRENT_LISTING": {
       const all = await getAllListings();
-      const listing = all.find((l) => l.url === message.url);
+      // Flexibles URL-Matching: normalisierte Pfade vergleichen
+      const normalizeUrl = (url: string) => {
+        try {
+          const u = new URL(url);
+          return u.hostname + u.pathname.replace(/\/$/, "");
+        } catch {
+          return url;
+        }
+      };
+      const targetUrl = normalizeUrl(message.url);
+      const listing = all.find((l) => normalizeUrl(l.url) === targetUrl);
       if (!listing) return { tracked: false } as ListingStatus;
 
       const priceChange = calculatePriceChange(listing.priceHistory) ?? undefined;

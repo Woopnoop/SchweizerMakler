@@ -7,61 +7,113 @@
  * Risikobewertung: GERING — Keine spezifischen Plugin-Verbote.
  */
 
-import { waitForIdle, safeQuery, safeQueryAll, sendToBackground, extractIdFromUrl } from "./base-parser";
+import {
+  waitForIdle, safeQuery, safeQueryFirst, safeQueryAll,
+  sendToBackground, extractIdFromUrl, findTextByPattern, debugLog,
+} from "./base-parser";
 import { parseGermanPrice, parseArea, parseRooms, detectListingType } from "../utils/price-parser";
 
 waitForIdle(() => {
-  // WG-Gesucht Detailseiten haben numerische IDs in der URL
-  const externalId = extractIdFromUrl(window.location.pathname);
-  if (!externalId) return;
+  debugLog("WG-Gesucht Content Script aktiv auf:", window.location.href);
 
-  // Sicherstellen dass wir auf einer Detailseite sind (nicht Suchergebnisse)
+  // Detailseiten haben numerische IDs
+  const externalId = extractIdFromUrl(window.location.pathname);
+  if (!externalId) {
+    debugLog("Keine numerische ID in URL — keine Detailseite.");
+    return;
+  }
+
+  // Detailseite erkennen (verschiedene Muster)
+  const path = window.location.pathname;
   const isDetailPage =
-    window.location.pathname.includes("/wg-zimmer-in") ||
-    window.location.pathname.includes("/1-zimmer-wohnungen-in") ||
-    window.location.pathname.includes("/wohnungen-in") ||
-    window.location.pathname.includes("/haeuser-in") ||
-    document.querySelector(".headline-detailed-view-title") !== null;
-  if (!isDetailPage) return;
+    path.includes("/wg-zimmer-in") ||
+    path.includes("/1-zimmer-wohnungen-in") ||
+    path.includes("/wohnungen-in") ||
+    path.includes("/haeuser-in") ||
+    path.includes("/zimmer-in") ||
+    document.querySelector("h1[class*='headline']") !== null ||
+    document.querySelector("[id*='main_column']") !== null;
+
+  if (!isDetailPage) {
+    debugLog("Keine Detailseite erkannt.");
+    return;
+  }
 
   // Preis
-  const priceText =
-    safeQuery(".miete") ??
-    safeQuery("[class*='price']") ??
-    safeQuery(".headline-key-facts b");
-  const price = parseGermanPrice(priceText ?? "");
-  if (!price) return;
+  const priceText = safeQueryFirst(
+    ".miete",
+    "[class*='price']",
+    "[class*='Price']",
+    ".headline-key-facts b",
+    "[id*='rent']",
+    "[class*='rent']",
+    "[class*='miete']",
+    "[class*='cost']",
+  );
+
+  const priceSource = priceText ?? findTextByPattern(/\d{2,4}(?:,\d{2})?\s*€/);
+  const price = parseGermanPrice(priceSource ?? "");
+  debugLog("Preis:", priceSource, "→", price);
+
+  if (!price) {
+    debugLog("KEIN PREIS gefunden.");
+    return;
+  }
 
   // Titel
-  const title =
-    safeQuery("h1.headline-detailed-view-title") ??
-    safeQuery("h1") ??
-    "";
+  const title = safeQueryFirst(
+    "h1.headline-detailed-view-title",
+    "h1[class*='headline']",
+    "h1[class*='title']",
+    "#sltte",
+    "h1",
+  ) ?? "";
+
+  debugLog("Titel:", title);
   if (!title) return;
 
   // Ort
-  const location =
-    safeQuery(".col-sm-4.text-right a") ??
-    safeQuery("[class*='address']") ??
-    safeQuery(".headline-detailed-view-title + div") ??
-    "";
+  const location = safeQueryFirst(
+    ".col-sm-4.text-right a",
+    "[class*='address']",
+    "[class*='location']",
+    ".headline-detailed-view-title + div",
+    "[id*='map'] + *",
+    "a[href*='stadt']",
+  ) ?? "";
+  debugLog("Ort:", location);
 
-  // Fläche und Zimmer aus der Detail-Tabelle
+  // Fläche und Zimmer
   let areaSqm: number | undefined;
   let rooms: number | undefined;
 
-  const detailRows = safeQueryAll(".headline-key-facts .key-fact-title, table.table td");
+  const detailRows = [
+    ...safeQueryAll(".headline-key-facts .key-fact-title"),
+    ...safeQueryAll(".headline-key-facts b"),
+    ...safeQueryAll("table.table td"),
+    ...safeQueryAll("[class*='detail'] td"),
+    ...safeQueryAll("[class*='detail'] span"),
+    ...safeQueryAll("[class*='fact']"),
+  ];
+
   for (const row of detailRows) {
     const text = row.textContent ?? "";
-    if (text.includes("m²") || text.includes("qm") || text.includes("Größe")) {
+    if (!areaSqm && (text.includes("m²") || text.includes("qm") || text.includes("Größe"))) {
       areaSqm = parseArea(text) ?? undefined;
     }
-    if (text.includes("Zimmer") || text.includes("Zi")) {
+    if (!rooms && (text.includes("Zimmer") || text.includes("Zi"))) {
       rooms = parseRooms(text) ?? undefined;
     }
   }
 
-  // WG-Gesucht ist primär Miete
+  // Fallback: Body-Text
+  if (!areaSqm) {
+    const m = findTextByPattern(/\d{2,3}(?:,\d)?\s*m²/);
+    if (m) areaSqm = parseArea(m) ?? undefined;
+  }
+
+  debugLog("Fläche:", areaSqm, "Zimmer:", rooms);
+
   const listingType = detectListingType("", window.location.href);
 
   sendToBackground({
@@ -74,5 +126,6 @@ waitForIdle(() => {
     areaSqm,
     rooms,
     listingType,
+    address: location,
   });
 });

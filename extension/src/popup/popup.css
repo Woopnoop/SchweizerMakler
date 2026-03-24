@@ -267,6 +267,20 @@ body {
   text-align: center;
   color: var(--text-muted);
   font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.version-tag {
+  display: inline-block;
+  background: var(--primary);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 /* Text helpers */
