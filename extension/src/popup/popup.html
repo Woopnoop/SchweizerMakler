@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400">
+  <link rel="stylesheet" href="popup.css">
+  <title>SchweizerMakler</title>
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>SchweizerMakler</h1>
+    </header>
+
+    <!-- Aktuelle Anzeige -->
+    <section id="current-listing" class="section hidden">
+      <h2 class="section-title">Aktuelle Anzeige</h2>
+      <div id="listing-info">
+        <span id="listing-portal" class="badge"></span>
+        <h3 id="listing-title"></h3>
+        <p id="listing-location" class="text-muted"></p>
+      </div>
+      <div id="price-info">
+        <div class="price-row">
+          <span class="label">Aktueller Preis:</span>
+          <span id="current-price" class="price"></span>
+        </div>
+        <div class="price-row">
+          <span class="label">Erster Preis:</span>
+          <span id="first-price" class="price text-muted"></span>
+        </div>
+        <div id="price-change-row" class="price-row hidden">
+          <span class="label">Änderung:</span>
+          <span id="price-change" class="price-change"></span>
+        </div>
+        <div class="dates">
+          <span>Erster Besuch: <span id="first-seen"></span></span>
+          <span>Letzter Besuch: <span id="last-seen"></span></span>
+        </div>
+      </div>
+
+      <!-- Mini-Chart -->
+      <div id="chart-container" class="chart-container hidden">
+        <svg id="price-chart" viewBox="0 0 360 80" preserveAspectRatio="none"></svg>
+      </div>
+
+      <!-- Standort-Score -->
+      <div id="score-section" class="hidden">
+        <h3 class="section-subtitle">Standort-Score</h3>
+        <div class="score-overall">
+          <span id="score-total" class="score-value"></span>
+          <span class="score-max">/ 100</span>
+          <div class="score-bar"><div id="score-total-bar" class="score-fill"></div></div>
+        </div>
+        <div class="score-detail">
+          <div class="score-row">
+            <span class="score-label">Familie</span>
+            <span id="score-familie" class="score-num"></span>
+            <div class="score-bar small"><div id="score-familie-bar" class="score-fill"></div></div>
+          </div>
+          <div id="familie-details" class="score-details hidden"></div>
+          <div class="score-row">
+            <span class="score-label">ÖPNV</span>
+            <span id="score-oepnv" class="score-num"></span>
+            <div class="score-bar small"><div id="score-oepnv-bar" class="score-fill"></div></div>
+          </div>
+          <div id="oepnv-details" class="score-details hidden"></div>
+          <div class="score-row">
+            <span class="score-label">Umgebung</span>
+            <span id="score-aussicht" class="score-num"></span>
+            <div class="score-bar small"><div id="score-aussicht-bar" class="score-fill"></div></div>
+          </div>
+          <div id="aussicht-details" class="score-details hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Keine Anzeige erkannt -->
+    <section id="no-listing" class="section">
+      <p class="text-center text-muted">Keine Immobilienanzeige auf dieser Seite erkannt.</p>
+    </section>
+
+    <!-- Letzte Änderungen -->
+    <section id="recent-section" class="section">
+      <h2 class="section-title">Letzte Änderungen</h2>
+      <div id="recent-list" class="list"></div>
+      <p id="recent-empty" class="text-center text-muted hidden">Noch keine Preisänderungen.</p>
+    </section>
+
+    <!-- Statistik -->
+    <section id="stats-section" class="section">
+      <h2 class="section-title">Statistik</h2>
+      <div id="stats" class="stats-grid"></div>
+    </section>
+
+    <footer class="footer">
+      <small>Standortdaten: © OpenStreetMap contributors (ODbL)</small>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

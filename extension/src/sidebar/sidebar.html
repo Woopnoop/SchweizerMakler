@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>SchweizerMakler — Sidebar</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f9fafb;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --primary: #2563eb;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--bg);
+      padding: 16px;
+    }
+
+    .hidden { display: none !important; }
+
+    h1 { font-size: 16px; margin-bottom: 12px; color: var(--primary); }
+    h2 { font-size: 14px; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    select, button {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      background: var(--bg);
+      cursor: pointer;
+    }
+
+    button:hover { background: var(--bg-secondary); }
+    button.primary { background: var(--primary); color: white; border-color: var(--primary); }
+    button.primary:hover { opacity: 0.9; }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th {
+      text-align: left;
+      padding: 6px 8px;
+      background: var(--bg-secondary);
+      border-bottom: 2px solid var(--border);
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    th:hover { background: var(--border); }
+
+    td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    tr:hover { background: var(--bg-secondary); }
+
+    .change-up { color: var(--danger); font-weight: 600; }
+    .change-down { color: var(--success); font-weight: 600; }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 32px;
+    }
+
+    .footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .file-input { display: none; }
+  </style>
+</head>
+<body>
+  <h1>SchweizerMakler</h1>
+
+  <!-- Filter -->
+  <div class="controls">
+    <select id="filter-portal">
+      <option value="all">Alle Portale</option>
+      <option value="kleinanzeigen">Kleinanzeigen</option>
+      <option value="wg-gesucht">WG-Gesucht</option>
+      <option value="immowelt">Immowelt</option>
+      <option value="immoscout">ImmobilienScout24</option>
+    </select>
+    <select id="filter-type">
+      <option value="all">Miete & Kauf</option>
+      <option value="miete">Nur Miete</option>
+      <option value="kauf">Nur Kauf</option>
+    </select>
+    <select id="filter-change">
+      <option value="all">Alle</option>
+      <option value="up">Preis gestiegen</option>
+      <option value="down">Preis gesunken</option>
+    </select>
+  </div>
+
+  <!-- Actions -->
+  <div class="controls">
+    <button id="btn-export-csv">CSV Export</button>
+    <button id="btn-export-json">JSON Export</button>
+    <button id="btn-import-json">JSON Import</button>
+    <input type="file" id="import-file" accept=".json" class="file-input">
+  </div>
+
+  <!-- Tabelle -->
+  <table id="listings-table">
+    <thead>
+      <tr>
+        <th data-sort="title">Titel</th>
+        <th data-sort="portal">Portal</th>
+        <th data-sort="price">Preis</th>
+        <th data-sort="change">Änderung</th>
+        <th data-sort="score">Score</th>
+        <th data-sort="lastSeen">Letzter Besuch</th>
+      </tr>
+    </thead>
+    <tbody id="listings-body"></tbody>
+  </table>
+
+  <div id="empty-state" class="empty-state hidden">
+    Keine Anzeigen getrackt.
+  </div>
+
+  <div class="footer">
+    <p>Standortdaten: © OpenStreetMap contributors (ODbL)</p>
+  </div>
+
+  <script src="sidebar.js"></script>
+</body>
+</html>
