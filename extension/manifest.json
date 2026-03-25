@@ -10,7 +10,8 @@
   ],
   "host_permissions": [
     "https://overpass-api.de/*",
-    "https://nominatim.openstreetmap.org/*"
+    "https://nominatim.openstreetmap.org/*",
+    "http://localhost:3000/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",

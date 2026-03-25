@@ -1,8 +1,6 @@
 /**
  * Generiert Extension-Icons (16/48/128px) mit eingebetteter Versionsnummer.
- * Liest die Version aus der ROOT/VERSION Datei.
- *
- * Logo: Blaues Haus-Icon mit Preis-Chart-Linie + Version unten.
+ * Logo: Süßes Haus mit rotem Dach, Schornstein und leuchtenden Fenstern.
  */
 
 const sharp = require("sharp");
@@ -12,85 +10,102 @@ const path = require("path");
 const ICONS_DIR = path.join(__dirname, "..", "icons");
 const VERSION_FILE = path.join(__dirname, "..", "..", "VERSION");
 
-// Version lesen
 const version = fs.readFileSync(VERSION_FILE, "utf-8").trim();
 console.log(`Generiere Icons für Version ${version}...`);
 
-// SVG-Template für das Logo
 function createSvg(size) {
   const showVersion = size >= 48;
-  const versionFontSize = size === 128 ? 20 : 10;
-  const versionY = size === 128 ? 120 : 44;
-
-  // Skalierungsfaktor
-  const s = size / 128;
+  const showDetails = size >= 48;
+  const versionFontSize = size === 128 ? 18 : 9;
+  const versionY = size === 128 ? 118 : 44;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2563eb"/>
-      <stop offset="100%" style="stop-color:#1d4ed8"/>
-    </linearGradient>
-    <linearGradient id="chart" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#22c55e"/>
-      <stop offset="100%" style="stop-color:#16a34a"/>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#7DD3FC"/>
+      <stop offset="100%" style="stop-color:#38BDF8"/>
     </linearGradient>
   </defs>
 
-  <!-- Hintergrund: Abgerundetes Quadrat -->
-  <rect x="4" y="4" width="120" height="120" rx="24" fill="url(#bg)"/>
+  <!-- Himmel -->
+  <rect x="4" y="4" width="120" height="120" rx="24" fill="url(#sky)"/>
 
-  <!-- Haus-Silhouette -->
-  <g fill="white" opacity="0.95">
-    <!-- Dach (Dreieck) -->
-    <polygon points="64,22 28,56 100,56"/>
-    <!-- Hauswand -->
-    <rect x="36" y="56" width="56" height="40" rx="2"/>
-    <!-- Tür -->
-    <rect x="54" y="70" width="20" height="26" rx="2" fill="#2563eb"/>
-    <!-- Fenster links -->
-    <rect x="42" y="62" width="12" height="10" rx="1" fill="#2563eb"/>
-    <!-- Fenster rechts -->
-    <rect x="74" y="62" width="12" height="10" rx="1" fill="#2563eb"/>
+  <!-- Wolken -->
+  ${showDetails ? `
+  <ellipse cx="30" cy="24" rx="14" ry="6" fill="white" opacity="0.5"/>
+  <ellipse cx="100" cy="18" rx="10" ry="5" fill="white" opacity="0.4"/>
+  ` : ""}
+
+  <!-- Rasen -->
+  <rect x="4" y="86" width="120" height="38" rx="0" fill="#4ADE80" opacity="0.6"/>
+  <rect x="4" y="100" width="120" height="24" rx="0 0 24 24" fill="#22C55E" opacity="0.4"/>
+
+  <!-- Schornstein (hinter Dach) -->
+  <rect x="80" y="28" width="10" height="24" rx="2" fill="#7F1D1D"/>
+  <rect x="78" y="26" width="14" height="4" rx="1" fill="#991B1B"/>
+
+  <!-- Rauch -->
+  ${showDetails ? `
+  <circle cx="85" cy="20" r="4" fill="#D1D5DB" opacity="0.5"/>
+  <circle cx="89" cy="13" r="3" fill="#D1D5DB" opacity="0.4"/>
+  <circle cx="84" cy="8" r="2.5" fill="#D1D5DB" opacity="0.3"/>
+  ` : ""}
+
+  <!-- Dach (rot) -->
+  <polygon points="64,20 22,58 106,58" fill="#DC2626"/>
+  <polygon points="64,20 22,58 106,58" fill="none" stroke="#B91C1C" stroke-width="1.5"/>
+  <!-- Dach-Schatten -->
+  <polygon points="64,20 106,58 64,58" fill="#B91C1C" opacity="0.2"/>
+
+  <!-- Hauswand (creme) -->
+  <rect x="32" y="58" width="64" height="38" fill="#FEF3C7"/>
+  <rect x="32" y="58" width="64" height="38" fill="none" stroke="#F59E0B" stroke-width="0.5" opacity="0.4"/>
+
+  <!-- Tür (braun) -->
+  <rect x="55" y="72" width="18" height="24" rx="2" fill="#78350F"/>
+  <rect x="55" y="72" width="18" height="24" rx="2" fill="none" stroke="#451A03" stroke-width="0.5"/>
+  <!-- Türknauf -->
+  ${showDetails ? `<circle cx="70" cy="85" r="1.8" fill="#FDE68A"/>` : ""}
+
+  <!-- Fenster links (gelb leuchtend) -->
+  <rect x="38" y="64" width="13" height="11" rx="1.5" fill="#FDE68A"/>
+  <rect x="38" y="64" width="13" height="11" rx="1.5" fill="none" stroke="#D97706" stroke-width="0.7"/>
+  ${showDetails ? `
+  <line x1="44.5" y1="64" x2="44.5" y2="75" stroke="#D97706" stroke-width="0.5"/>
+  <line x1="38" y1="69.5" x2="51" y2="69.5" stroke="#D97706" stroke-width="0.5"/>
+  ` : ""}
+
+  <!-- Fenster rechts (gelb leuchtend) -->
+  <rect x="77" y="64" width="13" height="11" rx="1.5" fill="#FDE68A"/>
+  <rect x="77" y="64" width="13" height="11" rx="1.5" fill="none" stroke="#D97706" stroke-width="0.7"/>
+  ${showDetails ? `
+  <line x1="83.5" y1="64" x2="83.5" y2="75" stroke="#D97706" stroke-width="0.5"/>
+  <line x1="77" y1="69.5" x2="90" y2="69.5" stroke="#D97706" stroke-width="0.5"/>
+  ` : ""}
+
+  <!-- Kleines Herz auf dem Dach -->
+  ${size === 128 ? `
+  <g transform="translate(48, 38) scale(0.7)" fill="#FCA5A5" opacity="0.8">
+    <path d="M12,4 C12,4 8,0 5,0 C2,0 0,2.5 0,5 C0,9 12,16 12,16 C12,16 24,9 24,5 C24,2.5 22,0 19,0 C16,0 12,4 12,4Z"/>
   </g>
-
-  <!-- Preis-Chart-Linie (unten rechts, über dem Haus) -->
-  <polyline
-    points="30,90 50,82 65,86 80,72 98,60"
-    fill="none"
-    stroke="#22c55e"
-    stroke-width="4"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    opacity="0.9"
-  />
-  <!-- Pfeil am Ende der Chart-Linie -->
-  <polygon points="98,60 90,58 92,66" fill="#22c55e" opacity="0.9"/>
+  ` : ""}
 
   ${showVersion ? `
   <!-- Version -->
-  <rect x="24" y="${versionY - versionFontSize + 2}" width="80" height="${versionFontSize + 6}" rx="${versionFontSize / 3}" fill="rgba(0,0,0,0.4)"/>
+  <rect x="28" y="${versionY - versionFontSize}" width="72" height="${versionFontSize + 6}" rx="${versionFontSize / 2}" fill="rgba(0,0,0,0.45)"/>
   <text x="64" y="${versionY + 2}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="${versionFontSize}" fill="white" letter-spacing="0.5">v${version}</text>
   ` : ""}
 </svg>`;
 }
 
-// Icons generieren
 async function generate() {
   const sizes = [16, 48, 128];
-
   for (const size of sizes) {
     const svg = createSvg(size);
     const outputPath = path.join(ICONS_DIR, `icon${size}.png`);
-
-    await sharp(Buffer.from(svg))
-      .resize(size, size)
-      .png()
-      .toFile(outputPath);
-
+    await sharp(Buffer.from(svg)).resize(size, size).png().toFile(outputPath);
     console.log(`  ✓ icon${size}.png`);
   }
-
   console.log("Icons erfolgreich generiert!");
 }
 

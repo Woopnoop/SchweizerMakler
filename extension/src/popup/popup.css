@@ -261,6 +261,25 @@ body {
   color: var(--text-muted);
 }
 
+/* MaklerToolkit senden */
+.send-toolkit { margin-top: 10px; }
+.btn-toolkit {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-toolkit:hover { background: #1d4ed8; }
+.btn-toolkit:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-toolkit.success { background: #22c55e; }
+.btn-toolkit.error { background: #ef4444; }
+
 /* Footer */
 .footer {
   padding: 8px 16px;

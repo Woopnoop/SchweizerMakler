@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Map,
+  Map as MapIcon,
   Building2,
   Train,
   ShoppingCart,
@@ -15,7 +15,10 @@ import {
   X,
   AlertTriangle,
   Lock,
+  Search,
+  Filter,
 } from "lucide-react";
+import { LANDKREIS_LABELS } from "@/lib/data/stadtteile-sample";
 
 // ============================================================
 // Types
@@ -25,6 +28,7 @@ interface District {
   id: string;
   name: string;
   stadt: string;
+  landkreis: string;
   einwohner: number | null;
   infrastrukturScore: string;
   anbindungScore: string;
@@ -33,14 +37,6 @@ interface District {
   gesamtScore: string;
   quellenangabe: string;
 }
-
-type Stadt = "erlangen" | "fuerth" | "nuernberg";
-
-const STADT_LABELS: Record<Stadt, string> = {
-  erlangen: "Erlangen",
-  fuerth: "Fürth",
-  nuernberg: "Nürnberg",
-};
 
 // ============================================================
 // Score color helpers
@@ -176,12 +172,15 @@ function DistrictCard({
           )}
           <div>
             <h3 className="font-semibold text-gray-900">{district.name}</h3>
-            {district.einwohner && (
-              <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
-                <Users className="h-3 w-3" />
-                {district.einwohner.toLocaleString("de-DE")} Einwohner
-              </p>
-            )}
+            <p className="mt-0.5 text-xs text-gray-500">
+              {district.stadt}
+              {district.einwohner && (
+                <span className="ml-2 inline-flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  {district.einwohner.toLocaleString("de-DE")} Einwohner
+                </span>
+              )}
+            </p>
           </div>
         </div>
 
@@ -299,14 +298,14 @@ function ComparisonPanel({
         <div className="text-center">
           <h3 className="font-semibold text-gray-900">{districtA.name}</h3>
           <p className="text-xs text-gray-500">
-            {STADT_LABELS[districtA.stadt as Stadt]}
+            {LANDKREIS_LABELS[districtA.landkreis] ?? districtA.stadt}
           </p>
         </div>
         <div className="flex items-center text-gray-300 text-sm">vs</div>
         <div className="text-center">
           <h3 className="font-semibold text-gray-900">{districtB.name}</h3>
           <p className="text-xs text-gray-500">
-            {STADT_LABELS[districtB.stadt as Stadt]}
+            {LANDKREIS_LABELS[districtB.landkreis] ?? districtB.stadt}
           </p>
         </div>
       </div>
@@ -395,39 +394,174 @@ function ComparisonPanel({
 }
 
 // ============================================================
+// Collapsible Landkreis Section
+// ============================================================
+
+function LandkreisSection({
+  landkreisId,
+  districts,
+  expandedId,
+  setExpandedId,
+  compareMode,
+  selectedForCompare,
+  onCompareSelect,
+  defaultOpen,
+}: {
+  landkreisId: string;
+  districts: District[];
+  expandedId: string | null;
+  setExpandedId: (id: string | null) => void;
+  compareMode: boolean;
+  selectedForCompare: string[];
+  onCompareSelect: (id: string) => void;
+  defaultOpen: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const label = LANDKREIS_LABELS[landkreisId] ?? landkreisId;
+
+  // Sort districts by gesamtScore descending
+  const sorted = [...districts].sort(
+    (a, b) => Number(b.gesamtScore) - Number(a.gesamtScore),
+  );
+
+  return (
+    <div className="mb-6">
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-gray-500" />
+          <span className="font-semibold text-gray-800">{label}</span>
+          <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+            {districts.length}
+          </span>
+        </div>
+        {isOpen ? (
+          <ChevronUp className="h-4 w-4 text-gray-400" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-gray-400" />
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {sorted.map((district) => (
+            <DistrictCard
+              key={district.id}
+              district={district}
+              isExpanded={expandedId === district.id}
+              onToggle={() =>
+                setExpandedId(
+                  expandedId === district.id ? null : district.id,
+                )
+              }
+              compareMode={compareMode}
+              isSelectedForCompare={selectedForCompare.includes(district.id)}
+              onCompareSelect={onCompareSelect}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // Main Page
 // ============================================================
 
 export default function KartePage() {
-  const [activeStadt, setActiveStadt] = useState<Stadt>("erlangen");
-  const [districts, setDistricts] = useState<District[]>([]);
+  const [allDistricts, setAllDistricts] = useState<District[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Filters
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedLandkreise, setSelectedLandkreise] = useState<string[]>([]);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   // Compare mode
   const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
 
-  const fetchDistricts = useCallback(async (stadt: Stadt) => {
+  const fetchDistricts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/stadtteile?stadt=${stadt}`);
+      const res = await fetch("/api/stadtteile");
       const json = await res.json();
-      setDistricts(json.data ?? []);
+      setAllDistricts(json.data ?? []);
     } catch (error) {
       console.error("Fehler beim Laden der Stadtteile:", error);
-      setDistricts([]);
+      setAllDistricts([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchDistricts(activeStadt);
-    setExpandedId(null);
-    setCompareMode(false);
-    setSelectedForCompare([]);
-  }, [activeStadt, fetchDistricts]);
+    fetchDistricts();
+  }, [fetchDistricts]);
+
+  // Client-side filtering
+  const filteredDistricts = useMemo(() => {
+    let data = allDistricts;
+
+    if (selectedLandkreise.length > 0) {
+      data = data.filter((d) => selectedLandkreise.includes(d.landkreis));
+    }
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      data = data.filter(
+        (d) =>
+          d.name.toLowerCase().includes(term) ||
+          d.stadt.toLowerCase().includes(term) ||
+          (LANDKREIS_LABELS[d.landkreis] ?? "").toLowerCase().includes(term),
+      );
+    }
+
+    return data;
+  }, [allDistricts, selectedLandkreise, searchTerm]);
+
+  // Group by landkreis, maintaining a stable order
+  const groupedByLandkreis = useMemo(() => {
+    const landkreisOrder = Object.keys(LANDKREIS_LABELS);
+    const groups: { landkreisId: string; districts: District[] }[] = [];
+    const grouped = new Map<string, District[]>();
+
+    for (const d of filteredDistricts) {
+      const existing = grouped.get(d.landkreis);
+      if (existing) {
+        existing.push(d);
+      } else {
+        grouped.set(d.landkreis, [d]);
+      }
+    }
+
+    for (const lk of landkreisOrder) {
+      const districts = grouped.get(lk);
+      if (districts && districts.length > 0) {
+        groups.push({ landkreisId: lk, districts });
+      }
+    }
+
+    // Any unknown landkreis at the end
+    for (const [lk, districts] of grouped) {
+      if (!landkreisOrder.includes(lk)) {
+        groups.push({ landkreisId: lk, districts });
+      }
+    }
+
+    return groups;
+  }, [filteredDistricts]);
+
+  // Available landkreise from loaded data
+  const availableLandkreise = useMemo(() => {
+    const set = new Set(allDistricts.map((d) => d.landkreis));
+    return Object.keys(LANDKREIS_LABELS).filter((lk) => set.has(lk));
+  }, [allDistricts]);
 
   function handleCompareSelect(id: string) {
     setSelectedForCompare((prev) => {
@@ -446,77 +580,149 @@ export default function KartePage() {
     setSelectedForCompare([]);
   }
 
-  const compareDistrictA = districts.find(
+  function toggleLandkreis(lk: string) {
+    setSelectedLandkreise((prev) =>
+      prev.includes(lk) ? prev.filter((x) => x !== lk) : [...prev, lk],
+    );
+  }
+
+  const compareDistrictA = allDistricts.find(
     (d) => d.id === selectedForCompare[0],
   );
-  const compareDistrictB = districts.find(
+  const compareDistrictB = allDistricts.find(
     (d) => d.id === selectedForCompare[1],
   );
 
-  // Sort districts by gesamtScore descending
-  const sortedDistricts = [...districts].sort(
-    (a, b) => Number(b.gesamtScore) - Number(a.gesamtScore),
-  );
+  const totalResults = filteredDistricts.length;
 
   return (
     <div>
       {/* Header */}
       <div className="mb-8 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-          <Map className="h-5 w-5 text-[var(--brand)]" />
+          <MapIcon className="h-5 w-5 text-[var(--brand)]" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             Stadtteil-Analyse
           </h1>
           <p className="text-sm text-gray-600">
-            Bewertung der Stadtteile in Erlangen, Fürth und Nürnberg
+            Bewertung von Stadtteilen und Gemeinden im Umkreis von 50 km um
+            Fürth
           </p>
         </div>
       </div>
 
-      {/* City Tabs */}
-      <div className="mb-6 flex flex-wrap gap-2">
-        {(Object.entries(STADT_LABELS) as [Stadt, string][]).map(
-          ([key, label]) => (
+      {/* Search & Filter Bar */}
+      <div className="mb-6 space-y-3">
+        {/* Search input */}
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Stadtteil oder Gemeinde suchen..."
+            className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20"
+          />
+          {searchTerm && (
             <button
-              key={key}
               type="button"
-              onClick={() => setActiveStadt(key)}
-              className={`rounded-lg px-5 py-2.5 text-sm font-medium transition-colors ${
-                activeStadt === key
-                  ? "bg-[var(--brand)] text-white"
-                  : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 hover:text-gray-600"
             >
-              {label}
+              <X className="h-4 w-4" />
             </button>
-          ),
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Compare toggle */}
-      <div className="mb-6 flex items-center gap-4">
-        <button
-          type="button"
-          onClick={toggleCompareMode}
-          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-            compareMode
-              ? "bg-[var(--brand)] text-white"
-              : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          <ArrowLeftRight className="h-4 w-4" />
-          Vergleichen
-        </button>
-        {compareMode && (
-          <span className="text-sm text-gray-500">
-            {selectedForCompare.length === 0
-              ? "Wählen Sie zwei Stadtteile zum Vergleich"
-              : selectedForCompare.length === 1
-                ? "Noch einen Stadtteil auswählen..."
-                : "Vergleich bereit"}
-          </span>
+        {/* Filter row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFilterOpen((v) => !v)}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              selectedLandkreise.length > 0
+                ? "bg-[var(--brand)] text-white"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <Filter className="h-4 w-4" />
+            Landkreis
+            {selectedLandkreise.length > 0 && (
+              <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-xs">
+                {selectedLandkreise.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleCompareMode}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              compareMode
+                ? "bg-[var(--brand)] text-white"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+            Vergleichen
+          </button>
+
+          {compareMode && (
+            <span className="text-sm text-gray-500">
+              {selectedForCompare.length === 0
+                ? "Wählen Sie zwei Stadtteile zum Vergleich"
+                : selectedForCompare.length === 1
+                  ? "Noch einen Stadtteil auswählen..."
+                  : "Vergleich bereit"}
+            </span>
+          )}
+
+          {(searchTerm || selectedLandkreise.length > 0) && (
+            <span className="ml-auto text-xs text-gray-500">
+              {totalResults} Ergebnis{totalResults !== 1 ? "se" : ""}
+            </span>
+          )}
+        </div>
+
+        {/* Landkreis multi-select dropdown */}
+        {filterOpen && (
+          <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Landkreis filtern
+              </span>
+              {selectedLandkreise.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedLandkreise([])}
+                  className="text-xs text-[var(--brand)] hover:underline"
+                >
+                  Alle zurücksetzen
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {availableLandkreise.map((lk) => {
+                const isActive = selectedLandkreise.includes(lk);
+                return (
+                  <button
+                    key={lk}
+                    type="button"
+                    onClick={() => toggleLandkreis(lk)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      isActive
+                        ? "bg-[var(--brand)] text-white"
+                        : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {LANDKREIS_LABELS[lk] ?? lk}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
@@ -555,47 +761,67 @@ export default function KartePage() {
         </span>
       </div>
 
-      {/* District Grid */}
+      {/* District sections grouped by Landkreis */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-32 animate-pulse rounded-xl border border-gray-200 bg-gray-50"
-            />
+        <div className="space-y-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i}>
+              <div className="h-12 animate-pulse rounded-lg border border-gray-200 bg-gray-50 mb-3" />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <div
+                    key={j}
+                    className="h-32 animate-pulse rounded-xl border border-gray-200 bg-gray-50"
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
-      ) : sortedDistricts.length === 0 ? (
+      ) : groupedByLandkreis.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
-          <Map className="mx-auto h-10 w-10 text-gray-300" />
+          <MapIcon className="mx-auto h-10 w-10 text-gray-300" />
           <p className="mt-4 text-sm text-gray-500">
-            Keine Stadtteile für {STADT_LABELS[activeStadt]} gefunden.
+            Keine Stadtteile gefunden
+            {searchTerm ? ` für "${searchTerm}"` : ""}.
           </p>
+          {(searchTerm || selectedLandkreise.length > 0) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedLandkreise([]);
+              }}
+              className="mt-3 text-sm text-[var(--brand)] hover:underline"
+            >
+              Filter zurücksetzen
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sortedDistricts.map((district) => (
-            <DistrictCard
-              key={district.id}
-              district={district}
-              isExpanded={expandedId === district.id}
-              onToggle={() =>
-                setExpandedId((prev) =>
-                  prev === district.id ? null : district.id,
-                )
-              }
-              compareMode={compareMode}
-              isSelectedForCompare={selectedForCompare.includes(district.id)}
-              onCompareSelect={handleCompareSelect}
-            />
-          ))}
-        </div>
+        groupedByLandkreis.map(({ landkreisId, districts }) => (
+          <LandkreisSection
+            key={landkreisId}
+            landkreisId={landkreisId}
+            districts={districts}
+            expandedId={expandedId}
+            setExpandedId={setExpandedId}
+            compareMode={compareMode}
+            selectedForCompare={selectedForCompare}
+            onCompareSelect={handleCompareSelect}
+            defaultOpen={
+              groupedByLandkreis.length <= 3 ||
+              selectedLandkreise.length > 0 ||
+              searchTerm.length > 0
+            }
+          />
+        ))
       )}
 
       {/* Bodenrichtwerte placeholder (behind feature flag) */}
       <div className="mt-10">
         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Map className="h-5 w-5 text-gray-400" />
+          <MapIcon className="h-5 w-5 text-gray-400" />
           Bodenrichtwerte
         </h2>
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-8">

@@ -85,6 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (listing) {
         const priceChange = calculatePriceChange(listing.priceHistory) ?? undefined;
         renderCurrentListing(listing, priceChange);
+        setupToolkitButton(listing);
       }
     }
 
@@ -286,6 +287,55 @@ function renderStatistics(stats: PortalStatistics): void {
       <div class="stat-label">Andere</div>
     </div>
   `;
+}
+
+// ============================================================
+// MaklerToolkit senden
+// ============================================================
+
+function setupToolkitButton(listing: TrackedListing): void {
+  show("send-to-toolkit");
+  const btn = document.getElementById("btn-send-toolkit")!;
+
+  btn.addEventListener("click", async () => {
+    btn.setAttribute("disabled", "true");
+    btn.textContent = "Wird gesendet...";
+
+    try {
+      const currentPrice = listing.priceHistory[listing.priceHistory.length - 1].price;
+      const response = await fetch("http://localhost:3000/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: listing.id,
+          portal: listing.portal,
+          url: listing.url,
+          title: listing.title,
+          location: listing.location,
+          currentPrice,
+          listingType: listing.listingType,
+          areaSqm: listing.areaSqm,
+          rooms: listing.rooms,
+          standortScore: listing.standortScore?.gesamt,
+          priceHistory: listing.priceHistory,
+        }),
+      });
+
+      if (response.ok) {
+        btn.textContent = "\u2713 Gesendet!";
+        btn.classList.add("success");
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch {
+      btn.textContent = "Fehler \u2014 erneut versuchen";
+      btn.classList.add("error");
+      btn.removeAttribute("disabled");
+      const status = document.getElementById("toolkit-status")!;
+      status.textContent = "MaklerToolkit (localhost:3000) nicht erreichbar";
+      show("toolkit-status");
+    }
+  });
 }
 
 // ============================================================
