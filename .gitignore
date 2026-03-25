@@ -8,3 +8,5 @@ Thumbs.db
 *.png
 !extension/icons/*.png
 Fehler.png
+Docs/~*.tmp
+~
