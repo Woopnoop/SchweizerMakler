@@ -7,7 +7,7 @@ const COOKIE_NAME = "session";
 export function setSessionCookie(response: NextResponse, token: string): void {
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: false, // HTTP — auf true setzen wenn HTTPS aktiv
     sameSite: "lax",
     path: "/",
     maxAge: 7 * 24 * 60 * 60, // 7 days
