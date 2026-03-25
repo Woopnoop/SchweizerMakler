@@ -1,22 +1,20 @@
 /**
  * Content Script für immobilienscout24.de
  *
- * RISIKOBEWERTUNG: HOCH
- * - "Data Extraction" in AGB verboten, Vertragsstrafe bis €50.000
- * - IT-Rechtsanwalt Konsultation vor kommerziellem Einsatz empfohlen
+ * RISIKOBEWERTUNG: HOCH — "Data Extraction" verboten, bis €50.000 Vertragsstrafe.
  *
- * SICHERHEITSMASSNAHMEN:
- * 1. KEIN DOM verändern
- * 2. KEINE HTTP-Requests an immobilienscout24.de
- * 3. Zufälliges Timing
- * 4. Nur DOM lesen, dann fertig
- *
- * IS24 ist eine SPA (React) — Inhalte werden dynamisch geladen.
- * Deshalb: Mehrere Versuche mit Wartezeit bis Preis im DOM erscheint.
+ * Strategie: Mehrere Erkennungsmethoden, da IS24 das Layout häufig ändert.
+ * 1. JSON-LD Structured Data (schema.org) — zuverlässigste Methode
+ * 2. DOM-Selektoren (data-is24-qa Attribute + Klassen)
+ * 3. Body-Text Regex als letzter Fallback
  */
 
 import type { ListingMessage } from "../types";
 import { parseGermanPrice, parseArea, parseRooms, detectListingType } from "../utils/price-parser";
+
+// ============================================================
+// Hilfsfunktionen
+// ============================================================
 
 function read(selector: string): string | null {
   try {
@@ -34,22 +32,6 @@ function readFirst(...selectors: string[]): string | null {
   return null;
 }
 
-function readAttr(selector: string, attr: string): string | null {
-  try {
-    return document.querySelector(selector)?.getAttribute(attr) || null;
-  } catch {
-    return null;
-  }
-}
-
-function findPriceInPage(): string | null {
-  // IS24 rendert Preise in verschiedenen Containern
-  const body = document.body?.innerText ?? "";
-  // Suche nach Preismustern: "299.000 €", "1.200 €", etc.
-  const match = body.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*€/);
-  return match ? match[0] : null;
-}
-
 function send(data: ListingMessage["data"]): void {
   try {
     chrome.runtime.sendMessage({ type: "LISTING_DETECTED", data } as ListingMessage);
@@ -59,71 +41,126 @@ function send(data: ListingMessage["data"]): void {
   }
 }
 
-function tryExtract(): boolean {
-  // Nur auf Exposé-Detailseiten
-  if (!window.location.pathname.includes("/expose/")) return false;
+// ============================================================
+// Methode 1: JSON-LD Structured Data
+// ============================================================
 
-  const idMatch = window.location.pathname.match(/\/expose\/(\d+)/);
-  if (!idMatch) return false;
-  const externalId = idMatch[1];
+interface JsonLdData {
+  price?: number;
+  title?: string;
+  location?: string;
+  area?: number;
+  rooms?: number;
+  listingType?: "miete" | "kauf";
+}
 
-  // Preis — viele Selektoren da IS24 das Layout häufig ändert
+function tryJsonLd(): JsonLdData | null {
+  try {
+    const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
+    for (const script of scripts) {
+      const text = script.textContent;
+      if (!text) continue;
+
+      const data = JSON.parse(text);
+      const items = Array.isArray(data) ? data : [data];
+
+      for (const item of items) {
+        // Schema.org RealEstateListing, Residence, Offer, Product
+        const price =
+          item.offers?.price ??
+          item.offers?.lowPrice ??
+          item.price ??
+          item.offers?.[0]?.price;
+
+        if (price) {
+          const numPrice = typeof price === "string" ? parseGermanPrice(price) : Number(price);
+          if (numPrice && numPrice > 0) {
+            console.log("[SchweizerMakler] IS24: Preis via JSON-LD gefunden:", numPrice);
+            return {
+              price: numPrice,
+              title: item.name ?? item.headline ?? undefined,
+              location: item.address?.addressLocality ?? item.address?.streetAddress ?? undefined,
+              area: item.floorSize?.value ? Number(item.floorSize.value) : undefined,
+              rooms: item.numberOfRooms ? Number(item.numberOfRooms) : undefined,
+              listingType: item.offers?.priceCurrency === "EUR" && price < 5000 ? "miete" : "kauf",
+            };
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log("[SchweizerMakler] IS24: JSON-LD Parsing Fehler:", e);
+  }
+  return null;
+}
+
+// ============================================================
+// Methode 2: Meta-Tags
+// ============================================================
+
+function tryMetaTags(): { title?: string; description?: string } {
+  const title =
+    document.querySelector('meta[property="og:title"]')?.getAttribute("content") ??
+    document.querySelector('meta[name="title"]')?.getAttribute("content") ??
+    undefined;
+  const description =
+    document.querySelector('meta[property="og:description"]')?.getAttribute("content") ??
+    document.querySelector('meta[name="description"]')?.getAttribute("content") ??
+    undefined;
+  return { title, description };
+}
+
+// ============================================================
+// Methode 3: DOM-Selektoren
+// ============================================================
+
+function tryDomSelectors(): { price: number | null; title: string; location: string; area?: number; rooms?: number } {
+  // Preis — alle bekannten IS24 Selektoren + generische
   const priceText = readFirst(
-    // data-is24-qa Attribute
+    // IS24-spezifische data Attribute
     "[data-is24-qa='is24qa-kaltmiete']",
     "[data-is24-qa='is24qa-kaufpreis']",
     "[data-is24-qa='is24qa-gesamtmiete']",
     "[data-is24-qa='is24qa-warmmiete']",
-    // Klassen-basiert
-    ".is24-price-value",
-    "[class*='HeaderPrice']",
-    "[class*='headerPrice']",
-    "[class*='price-value']",
-    "[class*='priceValue']",
+    // Klassen (IS24 nutzt CSS Modules mit Hashes, aber auch semantische Klassen)
     "[class*='Price'] [class*='Value']",
     "[class*='price'] [class*='value']",
-    // Generische Preis-Container
+    "[class*='Price'][class*='Value']",
+    "[class*='HeaderPrice']",
+    "[class*='headerPrice']",
+    "[class*='priceValue']",
+    "[class*='price-value']",
+    ".is24-price-value",
+    // Generische Container
     "div[class*='price'] span",
-    "div[class*='Price'] span",
     "span[class*='price']",
     "span[class*='Price']",
+    "div[class*='Price'] span",
     // Aria
     "[aria-label*='Kaufpreis']",
     "[aria-label*='Kaltmiete']",
     "[aria-label*='Warmmiete']",
+    "[aria-label*='Preis']",
+    "[aria-label*='preis']",
   );
 
-  // Letzter Fallback: Preis im gesamten Seitentext suchen
-  const priceSource = priceText ?? findPriceInPage();
-  const price = parseGermanPrice(priceSource ?? "");
-
-  if (!price) {
-    console.log("[SchweizerMakler] IS24: Kein Preis gefunden (Versuch fehlgeschlagen)");
-    return false; // Retry
-  }
+  const price = parseGermanPrice(priceText ?? "");
 
   // Titel
   const title = readFirst(
     "#expose-title",
-    "h1[data-is24-qa='expose-title']",
     "[data-is24-qa='expose-title']",
     "h1[class*='Title']",
     "h1[class*='title']",
     "h1",
   ) ?? "";
 
-  if (!title) {
-    console.log("[SchweizerMakler] IS24: Kein Titel gefunden");
-    return false;
-  }
-
-  // Ort / Adresse
+  // Ort
   const location = readFirst(
     "[data-is24-qa='is24qa-strasse']",
     "[data-is24-qa='expose-address']",
-    ".address-block span",
     "[class*='address'] span",
-    "[class*='Address'] span",
+    "[class*='Address']",
     "span[class*='zip-city']",
     "[class*='addressBlock']",
   ) ?? "";
@@ -133,60 +170,165 @@ function tryExtract(): boolean {
     "[data-is24-qa='is24qa-flaeche']",
     "[data-is24-qa='is24qa-wohnflaeche']",
     "[class*='livingSpace']",
-    "[class*='area']",
+    "[class*='LivingSpace']",
   );
-  const areaSqm = parseArea(areaText ?? "") ?? undefined;
+  const area = parseArea(areaText ?? "") ?? undefined;
 
   // Zimmer
   const roomsText = readFirst(
     "[data-is24-qa='is24qa-zi']",
     "[data-is24-qa='is24qa-zimmer']",
     "[class*='numberOfRooms']",
-    "[class*='rooms']",
+    "[class*='NumberOfRooms']",
   );
   const rooms = parseRooms(roomsText ?? "") ?? undefined;
 
-  // Typ
-  const listingType = detectListingType(priceText ?? "", window.location.href);
-
-  send({
-    portal: "immoscout",
-    externalId,
-    url: window.location.href,
-    title: title.substring(0, 100),
-    location,
-    price,
-    areaSqm,
-    rooms,
-    listingType,
-    address: location,
-  });
-
-  return true; // Erfolg
+  return { price, title, location, area, rooms };
 }
 
-// Retry-Logik: IS24 lädt Inhalte dynamisch nach (React SPA).
-// Versuche bis zu 5x mit zunehmendem Delay.
+// ============================================================
+// Methode 4: Body-Text Regex (aggressivster Fallback)
+// ============================================================
+
+function findPriceInBody(): number | null {
+  const text = document.body?.innerText ?? "";
+
+  // Verschiedene Preisformate die IS24 nutzen könnte
+  const patterns = [
+    /(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*€/,          // 299.000 € oder 299.000,00 €
+    /(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*EUR/i,        // 299.000 EUR
+    /€\s*(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)/,           // € 299.000
+    /Kaufpreis[:\s]*(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)/i,  // Kaufpreis: 299.000
+    /Kaltmiete[:\s]*(\d{1,3}(?:[\.,]\d{2,3})*)/i,        // Kaltmiete: 1.200
+    /Warmmiete[:\s]*(\d{1,3}(?:[\.,]\d{2,3})*)/i,        // Warmmiete: 1.400
+    /(\d{2,3}(?:,\d{2})?)\s*€\s*\/\s*Monat/i,           // 1.200 € / Monat
+    /(\d{1,3}(?:\.\d{3})+)\s/,                            // 299.000 (ohne €, als letzter Fallback)
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const price = parseGermanPrice(match[1] || match[0]);
+      if (price && price > 10) { // Mindestens 10€ um Hausnummern etc. auszuschließen
+        console.log("[SchweizerMakler] IS24: Preis via Body-Regex gefunden:", price, "Pattern:", pattern.source);
+        return price;
+      }
+    }
+  }
+  return null;
+}
+
+function findTitleInBody(): string {
+  // Fallback: h1 oder og:title
+  const meta = tryMetaTags();
+  return meta.title ?? read("h1") ?? "";
+}
+
+function findAreaInBody(): number | null {
+  const text = document.body?.innerText ?? "";
+  const match = text.match(/(\d{2,4}(?:,\d{1,2})?)\s*m²/);
+  return match ? parseArea(match[0]) : null;
+}
+
+function findRoomsInBody(): number | null {
+  const text = document.body?.innerText ?? "";
+  const match = text.match(/(\d(?:,5)?)\s*(?:Zimmer|Zi\.)/i);
+  return match ? parseRooms(match[0]) : null;
+}
+
+// ============================================================
+// Hauptlogik mit Retry
+// ============================================================
+
+function tryExtract(): boolean {
+  if (!window.location.pathname.includes("/expose/")) return false;
+
+  const idMatch = window.location.pathname.match(/\/expose\/(\d+)/);
+  if (!idMatch) return false;
+  const externalId = idMatch[1];
+
+  // Methode 1: JSON-LD (am zuverlässigsten)
+  const jsonLd = tryJsonLd();
+  if (jsonLd?.price) {
+    const title = jsonLd.title ?? findTitleInBody();
+    const location = jsonLd.location ?? readFirst("[class*='address']", "[class*='Address']") ?? "";
+
+    send({
+      portal: "immoscout",
+      externalId,
+      url: window.location.href,
+      title: (title || "IS24 Exposé").substring(0, 100),
+      location,
+      price: jsonLd.price,
+      areaSqm: jsonLd.area,
+      rooms: jsonLd.rooms,
+      listingType: jsonLd.listingType ?? detectListingType("", window.location.href),
+      address: location,
+    });
+    return true;
+  }
+
+  // Methode 2: DOM-Selektoren
+  const dom = tryDomSelectors();
+  if (dom.price) {
+    console.log("[SchweizerMakler] IS24: Preis via DOM-Selektor gefunden:", dom.price);
+    send({
+      portal: "immoscout",
+      externalId,
+      url: window.location.href,
+      title: (dom.title || findTitleInBody() || "IS24 Exposé").substring(0, 100),
+      location: dom.location,
+      price: dom.price,
+      areaSqm: dom.area,
+      rooms: dom.rooms,
+      listingType: detectListingType("", window.location.href),
+      address: dom.location,
+    });
+    return true;
+  }
+
+  // Methode 3: Body-Text Regex
+  const bodyPrice = findPriceInBody();
+  if (bodyPrice) {
+    const title = findTitleInBody();
+    send({
+      portal: "immoscout",
+      externalId,
+      url: window.location.href,
+      title: (title || "IS24 Exposé").substring(0, 100),
+      location: "",
+      price: bodyPrice,
+      areaSqm: findAreaInBody() ?? undefined,
+      rooms: findRoomsInBody() ?? undefined,
+      listingType: detectListingType("", window.location.href),
+    });
+    return true;
+  }
+
+  console.log("[SchweizerMakler] IS24: Kein Preis gefunden (Versuch fehlgeschlagen)");
+  return false;
+}
+
+// Retry: IS24 ist eine React SPA, Inhalte laden dynamisch
 let attempt = 0;
 const maxAttempts = 5;
 
 function tryWithDelay(): void {
   attempt++;
-  const delay = 1500 + Math.random() * 1500 + attempt * 1000; // 2.5s, 4s, 5.5s, 7s, 8.5s
+  const delay = 1500 + Math.random() * 1500 + attempt * 1000;
 
   setTimeout(() => {
     console.log(`[SchweizerMakler] IS24: Versuch ${attempt}/${maxAttempts}...`);
     const success = tryExtract();
 
     if (!success && attempt < maxAttempts) {
-      tryWithDelay(); // Nächster Versuch
+      tryWithDelay();
     } else if (!success) {
       console.log("[SchweizerMakler] IS24: Alle Versuche fehlgeschlagen — Seite nicht parsebar.");
     }
   }, delay);
 }
 
-// Starte den ersten Versuch
 if (window.location.pathname.includes("/expose/")) {
   console.log("[SchweizerMakler] IS24 Content Script aktiv auf:", window.location.href);
   tryWithDelay();

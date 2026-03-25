@@ -1,7 +1,10 @@
-import fs from "fs";
-import path from "path";
+/**
+ * Leads Store — In-Memory mit Fallback auf Dateisystem.
+ * Vercel: Nutzt In-Memory (kein fs-Zugriff in Serverless).
+ * Lokal: Nutzt data/leads.json (persistent).
+ */
 
-interface Lead {
+export interface Lead {
   id: string;
   portal: string;
   url: string;
@@ -16,49 +19,64 @@ interface Lead {
   receivedAt: number;
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const LEADS_FILE = path.join(DATA_DIR, "leads.json");
+// In-Memory Store (funktioniert überall, auch auf Vercel)
+const memoryStore = new Map<string, Lead>();
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function tryFileRead(): Lead[] | null {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const file = path.join(process.cwd(), "data", "leads.json");
+    if (fs.existsSync(file)) {
+      return JSON.parse(fs.readFileSync(file, "utf-8"));
+    }
+  } catch {
+    // Dateisystem nicht verfügbar (Vercel Serverless)
+  }
+  return null;
 }
 
-function readLeads(): Lead[] {
-  ensureDataDir();
-  if (!fs.existsSync(LEADS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(LEADS_FILE, "utf-8"));
+function tryFileWrite(leads: Lead[]): void {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const dir = path.join(process.cwd(), "data");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "leads.json"), JSON.stringify(leads, null, 2));
+  } catch {
+    // Dateisystem nicht verfügbar — nur In-Memory
+  }
 }
 
-function writeLeads(leads: Lead[]) {
-  ensureDataDir();
-  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+// Beim Start aus Datei laden falls möglich
+function initFromFile(): void {
+  if (memoryStore.size > 0) return;
+  const fileLeads = tryFileRead();
+  if (fileLeads) {
+    for (const lead of fileLeads) {
+      memoryStore.set(lead.id, lead);
+    }
+  }
 }
 
 export function getAll(): Lead[] {
-  return readLeads();
+  initFromFile();
+  return Array.from(memoryStore.values()).sort((a, b) => b.receivedAt - a.receivedAt);
 }
 
 export function addLead(lead: Omit<Lead, "receivedAt">): Lead {
-  const leads = readLeads();
-  const existing = leads.findIndex((l) => l.id === lead.id);
+  initFromFile();
   const fullLead: Lead = { ...lead, receivedAt: Date.now() };
-
-  if (existing !== -1) {
-    leads[existing] = fullLead;
-  } else {
-    leads.push(fullLead);
-  }
-
-  writeLeads(leads);
+  memoryStore.set(lead.id, fullLead);
+  tryFileWrite(Array.from(memoryStore.values()));
   return fullLead;
 }
 
 export function removeLead(id: string): boolean {
-  const leads = readLeads();
-  const filtered = leads.filter((l) => l.id !== id);
-
-  if (filtered.length === leads.length) return false;
-
-  writeLeads(filtered);
-  return true;
+  initFromFile();
+  const deleted = memoryStore.delete(id);
+  if (deleted) {
+    tryFileWrite(Array.from(memoryStore.values()));
+  }
+  return deleted;
 }

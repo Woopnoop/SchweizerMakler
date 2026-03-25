@@ -11,7 +11,8 @@
   "host_permissions": [
     "https://overpass-api.de/*",
     "https://nominatim.openstreetmap.org/*",
-    "http://localhost:3000/*"
+    "http://localhost:3000/*",
+    "https://webapp-alpha-wheat.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",

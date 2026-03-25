@@ -303,7 +303,7 @@ function setupToolkitButton(listing: TrackedListing): void {
 
     try {
       const currentPrice = listing.priceHistory[listing.priceHistory.length - 1].price;
-      const response = await fetch("http://localhost:3000/api/leads", {
+      const response = await fetch("https://webapp-alpha-wheat.vercel.app/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -332,7 +332,7 @@ function setupToolkitButton(listing: TrackedListing): void {
       btn.classList.add("error");
       btn.removeAttribute("disabled");
       const status = document.getElementById("toolkit-status")!;
-      status.textContent = "MaklerToolkit (localhost:3000) nicht erreichbar";
+      status.textContent = "MaklerToolkit nicht erreichbar";
       show("toolkit-status");
     }
   });
