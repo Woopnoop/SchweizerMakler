@@ -305,8 +305,64 @@ function tryExtract(): boolean {
     return true;
   }
 
-  console.log("[SchweizerMakler] IS24: Kein Preis gefunden (Versuch fehlgeschlagen)");
+  // DEBUG: Detaillierte Analyse der Seite loggen
+  debugDumpPage();
   return false;
+}
+
+function debugDumpPage(): void {
+  console.log("[SchweizerMakler] IS24 DEBUG — Seiten-Analyse:");
+
+  // 1. JSON-LD
+  const ldScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
+  console.log("[SM-DEBUG] JSON-LD Scripts gefunden:", ldScripts.length);
+  ldScripts.forEach((s, i) => {
+    try { console.log(`[SM-DEBUG] JSON-LD #${i}:`, JSON.parse(s.textContent ?? "")); } catch { /* */ }
+  });
+
+  // 2. Meta-Tags
+  const metas = Array.from(document.querySelectorAll("meta")).filter(m =>
+    m.getAttribute("property")?.includes("og:") || m.getAttribute("name")?.includes("description")
+  );
+  metas.forEach(m => console.log("[SM-DEBUG] Meta:", m.getAttribute("property") ?? m.getAttribute("name"), "=", m.getAttribute("content")?.substring(0, 100)));
+
+  // 3. Alle Texte mit € oder EUR
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const priceTexts: string[] = [];
+  let node;
+  while (node = walker.nextNode()) {
+    const text = (node.textContent ?? "").trim();
+    if (text.match(/\d.*[€]|EUR/i) && text.length < 200) {
+      priceTexts.push(text);
+    }
+  }
+  console.log("[SM-DEBUG] Texte mit €/EUR:", priceTexts);
+
+  // 4. Alle h1, h2 Elemente
+  const headings = Array.from(document.querySelectorAll("h1, h2")).map(h => h.textContent?.trim()).filter(Boolean);
+  console.log("[SM-DEBUG] Überschriften:", headings);
+
+  // 5. Alle data-is24-qa Attribute
+  const is24qa = Array.from(document.querySelectorAll("[data-is24-qa]")).map(el => ({
+    qa: el.getAttribute("data-is24-qa"),
+    text: el.textContent?.trim()?.substring(0, 80),
+    tag: el.tagName,
+  }));
+  console.log("[SM-DEBUG] data-is24-qa Elemente:", is24qa);
+
+  // 6. Alle data-testid Attribute
+  const testids = Array.from(document.querySelectorAll("[data-testid]")).map(el => ({
+    testid: el.getAttribute("data-testid"),
+    text: el.textContent?.trim()?.substring(0, 80),
+    tag: el.tagName,
+  }));
+  console.log("[SM-DEBUG] data-testid Elemente:", testids.slice(0, 30));
+
+  // 7. document.title
+  console.log("[SM-DEBUG] document.title:", document.title);
+
+  // 8. Body Text auszug (erste 500 Zeichen)
+  console.log("[SM-DEBUG] Body text (500 chars):", document.body?.innerText?.substring(0, 500));
 }
 
 // Retry: IS24 ist eine React SPA, Inhalte laden dynamisch

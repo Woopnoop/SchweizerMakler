@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getAll, addLead, removeLead } from "@/lib/leads-store";
+import { Pool } from "pg";
 
 const leadSchema = z.object({
   id: z.string().min(1),
@@ -18,57 +18,109 @@ const leadSchema = z.object({
     .default([]),
 });
 
+function getPool(): Pool {
+  return new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get("search")?.toLowerCase();
-  let leads = getAll().sort((a, b) => b.receivedAt - a.receivedAt);
+  const pool = getPool();
 
-  if (search) {
-    leads = leads.filter(
-      (l) =>
-        l.title.toLowerCase().includes(search) ||
-        l.location.toLowerCase().includes(search) ||
-        l.portal.toLowerCase().includes(search)
-    );
+  try {
+    let query = "SELECT * FROM leads ORDER BY received_at DESC";
+    const params: string[] = [];
+
+    if (search) {
+      query = "SELECT * FROM leads WHERE LOWER(title) LIKE $1 OR LOWER(location) LIKE $1 OR LOWER(portal) LIKE $1 ORDER BY received_at DESC";
+      params.push(`%${search}%`);
+    }
+
+    const result = await pool.query(query, params);
+    const leads = result.rows.map(row => ({
+      id: row.id,
+      portal: row.portal,
+      url: row.url,
+      title: row.title,
+      location: row.location,
+      currentPrice: Number(row.current_price),
+      listingType: row.listing_type,
+      areaSqm: row.area_sqm ? Number(row.area_sqm) : undefined,
+      rooms: row.rooms ? Number(row.rooms) : undefined,
+      standortScore: row.standort_score ? Number(row.standort_score) : undefined,
+      priceHistory: row.price_history ?? [],
+      receivedAt: new Date(row.received_at).getTime(),
+    }));
+
+    return NextResponse.json(leads);
+  } catch (err) {
+    console.error("Leads GET error:", err);
+    return NextResponse.json([], { status: 200 });
+  } finally {
+    await pool.end();
   }
-
-  return NextResponse.json(leads);
 }
 
 export async function POST(request: NextRequest) {
+  const pool = getPool();
+
   try {
     const body = await request.json();
     const parsed = leadSchema.parse(body);
-    const lead = addLead(parsed);
-    return NextResponse.json(lead, { status: 201 });
+
+    await pool.query(
+      `INSERT INTO leads (id, portal, url, title, location, current_price, listing_type, area_sqm, rooms, standort_score, price_history, received_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         current_price = $6,
+         price_history = $11,
+         received_at = NOW()`,
+      [
+        parsed.id,
+        parsed.portal,
+        parsed.url,
+        parsed.title,
+        parsed.location,
+        parsed.currentPrice,
+        parsed.listingType,
+        parsed.areaSqm ?? null,
+        parsed.rooms ?? null,
+        parsed.standortScore ?? null,
+        JSON.stringify(parsed.priceHistory),
+      ]
+    );
+
+    return NextResponse.json({ id: parsed.id, success: true }, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Validation failed", details: err.errors },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Validation failed", details: err.errors }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("Leads POST error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    await pool.end();
   }
 }
 
 export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
-
   if (!id) {
-    return NextResponse.json(
-      { error: "Missing required query parameter: id" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const removed = removeLead(id);
-
-  if (!removed) {
-    return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+  const pool = getPool();
+  try {
+    const result = await pool.query("DELETE FROM leads WHERE id = $1", [id]);
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Leads DELETE error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    await pool.end();
   }
-
-  return NextResponse.json({ success: true });
 }
