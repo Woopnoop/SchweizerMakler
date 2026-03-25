@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
       standortScore: row.standort_score ? Number(row.standort_score) : undefined,
       priceHistory: row.price_history ?? [],
       receivedAt: new Date(row.received_at).getTime(),
+      notizen: row.notizen ?? "",
     }));
 
     return NextResponse.json(leads);
@@ -119,6 +120,24 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Leads DELETE error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const pool = getPool();
+  try {
+    const body = await request.json();
+    const { id, notizen } = body;
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
+    await pool.query("UPDATE leads SET notizen = $1 WHERE id = $2", [notizen ?? "", id]);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Leads PATCH error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   } finally {
     await pool.end();

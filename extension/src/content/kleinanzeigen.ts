@@ -50,8 +50,8 @@ waitForIdle(() => {
     return;
   }
 
-  // Titel
-  const title = safeQueryFirst(
+  // Titel — spezifischen Selektor bevorzugen, h1 kann Badge-Texte enthalten
+  let title = safeQueryFirst(
     "#viewad-title",
     "[itemprop='name']",
     "[data-testid='title']",
@@ -59,6 +59,14 @@ waitForIdle(() => {
     "h1[class*='Title']",
     "h1",
   ) ?? "";
+
+  // Status-Prefixe entfernen die Kleinanzeigen in den Titel rendert
+  title = title
+    .replace(/^(?:Reserviert|Gelöscht|Deaktiviert|Pausiert)\s*•?\s*/gi, "")
+    .replace(/^(?:Reserviert|Gelöscht|Deaktiviert|Pausiert)\s*•?\s*/gi, "") // Doppelt für mehrere Prefixe
+    .replace(/^(?:Reserviert|Gelöscht|Deaktiviert|Pausiert)\s*•?\s*/gi, "")
+    .replace(/^•\s*/, "")
+    .trim();
 
   debugLog("Titel:", title);
   if (!title) {
