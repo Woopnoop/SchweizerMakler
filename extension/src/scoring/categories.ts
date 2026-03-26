@@ -96,7 +96,7 @@ export function calculateFamilieScore(
 
   // Maximale Rohpunkte: 30 + 24 + 20 + 15 + 16 + 12 + 10 + 12 = 139
   // Aber mit unseren Caps: 30 + 24 + 20 + 15 + 16 + 12 + 10 + 12 = 139
-  const maxPoints = 141;
+  const maxPoints = 139;
   const score = Math.round((rawPoints / maxPoints) * 100);
 
   return {

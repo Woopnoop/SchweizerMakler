@@ -35,7 +35,7 @@ function readFirst(...selectors: string[]): string | null {
 function send(data: ListingMessage["data"]): void {
   try {
     chrome.runtime.sendMessage({ type: "LISTING_DETECTED", data } as ListingMessage);
-    console.log("[SchweizerMakler] IS24 Listing erkannt:", data.title, data.price, "€");
+    console.debug("[SchweizerMakler] IS24 Listing erkannt:", data.title, data.price, "€");
   } catch {
     // Extension context ungültig
   }
@@ -75,7 +75,7 @@ function tryJsonLd(): JsonLdData | null {
         if (price) {
           const numPrice = typeof price === "string" ? parseGermanPrice(price) : Number(price);
           if (numPrice && numPrice > 0) {
-            console.log("[SchweizerMakler] IS24: Preis via JSON-LD gefunden:", numPrice);
+            console.debug("[SchweizerMakler] IS24: Preis via JSON-LD gefunden:", numPrice);
             return {
               price: numPrice,
               title: item.name ?? item.headline ?? undefined,
@@ -89,7 +89,7 @@ function tryJsonLd(): JsonLdData | null {
       }
     }
   } catch (e) {
-    console.log("[SchweizerMakler] IS24: JSON-LD Parsing Fehler:", e);
+    console.debug("[SchweizerMakler] IS24: JSON-LD Parsing Fehler:", e);
   }
   return null;
 }
@@ -210,7 +210,7 @@ function findPriceInBody(): number | null {
     if (match) {
       const price = parseGermanPrice(match[1] || match[0]);
       if (price && price > 10) { // Mindestens 10€ um Hausnummern etc. auszuschließen
-        console.log("[SchweizerMakler] IS24: Preis via Body-Regex gefunden:", price, "Pattern:", pattern.source);
+        console.debug("[SchweizerMakler] IS24: Preis via Body-Regex gefunden:", price, "Pattern:", pattern.source);
         return price;
       }
     }
@@ -271,7 +271,7 @@ function tryExtract(): boolean {
   // Methode 2: DOM-Selektoren
   const dom = tryDomSelectors();
   if (dom.price) {
-    console.log("[SchweizerMakler] IS24: Preis via DOM-Selektor gefunden:", dom.price);
+    console.debug("[SchweizerMakler] IS24: Preis via DOM-Selektor gefunden:", dom.price);
     send({
       portal: "immoscout",
       externalId,
@@ -311,20 +311,20 @@ function tryExtract(): boolean {
 }
 
 function debugDumpPage(): void {
-  console.log("[SchweizerMakler] IS24 DEBUG — Seiten-Analyse:");
+  console.debug("[SchweizerMakler] IS24 DEBUG — Seiten-Analyse:");
 
   // 1. JSON-LD
   const ldScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
-  console.log("[SM-DEBUG] JSON-LD Scripts gefunden:", ldScripts.length);
+  console.debug("[SM-DEBUG] JSON-LD Scripts gefunden:", ldScripts.length);
   ldScripts.forEach((s, i) => {
-    try { console.log(`[SM-DEBUG] JSON-LD #${i}:`, JSON.parse(s.textContent ?? "")); } catch { /* */ }
+    try { console.debug(`[SM-DEBUG] JSON-LD #${i}:`, JSON.parse(s.textContent ?? "")); } catch { /* */ }
   });
 
   // 2. Meta-Tags
   const metas = Array.from(document.querySelectorAll("meta")).filter(m =>
     m.getAttribute("property")?.includes("og:") || m.getAttribute("name")?.includes("description")
   );
-  metas.forEach(m => console.log("[SM-DEBUG] Meta:", m.getAttribute("property") ?? m.getAttribute("name"), "=", m.getAttribute("content")?.substring(0, 100)));
+  metas.forEach(m => console.debug("[SM-DEBUG] Meta:", m.getAttribute("property") ?? m.getAttribute("name"), "=", m.getAttribute("content")?.substring(0, 100)));
 
   // 3. Alle Texte mit € oder EUR
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -336,11 +336,11 @@ function debugDumpPage(): void {
       priceTexts.push(text);
     }
   }
-  console.log("[SM-DEBUG] Texte mit €/EUR:", priceTexts);
+  console.debug("[SM-DEBUG] Texte mit €/EUR:", priceTexts);
 
   // 4. Alle h1, h2 Elemente
   const headings = Array.from(document.querySelectorAll("h1, h2")).map(h => h.textContent?.trim()).filter(Boolean);
-  console.log("[SM-DEBUG] Überschriften:", headings);
+  console.debug("[SM-DEBUG] Überschriften:", headings);
 
   // 5. Alle data-is24-qa Attribute
   const is24qa = Array.from(document.querySelectorAll("[data-is24-qa]")).map(el => ({
@@ -348,7 +348,7 @@ function debugDumpPage(): void {
     text: el.textContent?.trim()?.substring(0, 80),
     tag: el.tagName,
   }));
-  console.log("[SM-DEBUG] data-is24-qa Elemente:", is24qa);
+  console.debug("[SM-DEBUG] data-is24-qa Elemente:", is24qa);
 
   // 6. Alle data-testid Attribute
   const testids = Array.from(document.querySelectorAll("[data-testid]")).map(el => ({
@@ -356,36 +356,40 @@ function debugDumpPage(): void {
     text: el.textContent?.trim()?.substring(0, 80),
     tag: el.tagName,
   }));
-  console.log("[SM-DEBUG] data-testid Elemente:", testids.slice(0, 30));
+  console.debug("[SM-DEBUG] data-testid Elemente:", testids.slice(0, 30));
 
   // 7. document.title
-  console.log("[SM-DEBUG] document.title:", document.title);
+  console.debug("[SM-DEBUG] document.title:", document.title);
 
   // 8. Body Text auszug (erste 500 Zeichen)
-  console.log("[SM-DEBUG] Body text (500 chars):", document.body?.innerText?.substring(0, 500));
+  console.debug("[SM-DEBUG] Body text (500 chars):", document.body?.innerText?.substring(0, 500));
 }
 
 // Retry: IS24 ist eine React SPA, Inhalte laden dynamisch
 let attempt = 0;
-const maxAttempts = 5;
+const maxAttempts = 6;
 
 function tryWithDelay(): void {
   attempt++;
-  const delay = 1500 + Math.random() * 1500 + attempt * 1000;
+  // Schnelle Versuche: 300ms, 600ms, 1s, 1.5s, 2s, 2.5s
+  const delay = Math.min(attempt * 300, 2500) + Math.random() * 200;
 
   setTimeout(() => {
-    console.log(`[SchweizerMakler] IS24: Versuch ${attempt}/${maxAttempts}...`);
+    console.debug(`[SchweizerMakler] IS24: Versuch ${attempt}/${maxAttempts}...`);
     const success = tryExtract();
 
     if (!success && attempt < maxAttempts) {
       tryWithDelay();
     } else if (!success) {
-      console.log("[SchweizerMakler] IS24: Alle Versuche fehlgeschlagen — Seite nicht parsebar.");
+      console.debug("[SchweizerMakler] IS24: Alle Versuche fehlgeschlagen — Seite nicht parsebar.");
     }
   }, delay);
 }
 
 if (window.location.pathname.includes("/expose/")) {
-  console.log("[SchweizerMakler] IS24 Content Script aktiv auf:", window.location.href);
-  tryWithDelay();
+  console.debug("[SchweizerMakler] IS24 Content Script aktiv auf:", window.location.href);
+  // Sofort versuchen (DOM könnte schon fertig sein)
+  if (!tryExtract()) {
+    tryWithDelay();
+  }
 }

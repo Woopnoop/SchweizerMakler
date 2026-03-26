@@ -17,9 +17,9 @@ import type { ListingMessage } from "../types";
  */
 export function waitForIdle(callback: () => void): void {
   if ("requestIdleCallback" in window) {
-    requestIdleCallback(callback, { timeout: 3000 });
+    requestIdleCallback(callback, { timeout: 500 });
   } else {
-    setTimeout(callback, 500 + Math.random() * 1000);
+    setTimeout(callback, 100 + Math.random() * 200);
   }
 }
 

@@ -4,7 +4,7 @@
  * WICHTIG:
  * - Overpass: max 2 Requests/Sekunde, Cache-Pflicht
  * - Nominatim: max 1 Request/Sekunde, User-Agent Pflicht
- * - Requests NUR aus dem Background Service Worker, NICHT aus Content Scripts
+ * - Requests NUR aus dem Background Service Worker
  * - Quellennennung: "© OpenStreetMap contributors (ODbL)"
  */
 
@@ -15,53 +15,44 @@ const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const USER_AGENT = "SchweizerMakler/1.0 (Browser-Extension, kontakt@schweizermakler.de)";
 
 // ============================================================
-// Rate Limiting
+// Rate Limiting (korrekter Queue-basierter Ansatz)
 // ============================================================
 
 class RateLimiter {
-  private queue: Array<() => void> = [];
   private lastCall = 0;
   private readonly minInterval: number;
+  private pending: Array<() => void> = [];
+  private processing = false;
 
   constructor(maxPerSecond: number) {
     this.minInterval = 1000 / maxPerSecond;
   }
 
   async acquire(): Promise<void> {
-    return new Promise((resolve) => {
-      const tryAcquire = () => {
-        const now = Date.now();
-        const waitTime = Math.max(0, this.lastCall + this.minInterval - now);
-
-        if (waitTime === 0) {
-          this.lastCall = now;
-          resolve();
-        } else {
-          setTimeout(() => {
-            this.lastCall = Date.now();
-            resolve();
-          }, waitTime);
-        }
-      };
-
-      this.queue.push(tryAcquire);
-      if (this.queue.length === 1) {
-        tryAcquire();
-      } else {
-        // Warten bis vorherige fertig sind
-        const idx = this.queue.length - 1;
-        const checkInterval = setInterval(() => {
-          if (this.queue.indexOf(tryAcquire) === 0) {
-            clearInterval(checkInterval);
-            tryAcquire();
-          }
-        }, this.minInterval);
-      }
+    return new Promise<void>((resolve) => {
+      this.pending.push(resolve);
+      this.processNext();
     });
   }
 
+  private processNext(): void {
+    if (this.processing || this.pending.length === 0) return;
+    this.processing = true;
+
+    const now = Date.now();
+    const waitTime = Math.max(0, this.lastCall + this.minInterval - now);
+
+    setTimeout(() => {
+      this.lastCall = Date.now();
+      const next = this.pending.shift();
+      this.processing = false;
+      next?.();
+      this.processNext();
+    }, waitTime);
+  }
+
   release(): void {
-    this.queue.shift();
+    // Keep for API compat — queue handles scheduling automatically
   }
 }
 
@@ -91,43 +82,36 @@ async function queryOverpass(query: string): Promise<OverpassResult> {
   }
 }
 
-/** Familienfreundlichkeit: Schulen, Kitas, Parks, Sport, Kultur im Umkreis */
-export async function queryFamilyPOIs(
+/**
+ * KOMBINIERTE Query: Alle POIs in einem einzigen Overpass-Request.
+ * Spart 3 API-Calls und ~1.5s Rate-Limiter-Wartezeit.
+ */
+export async function queryAllPOIs(
   lat: number,
-  lon: number,
-  radius = 1500
+  lon: number
 ): Promise<OverpassResult> {
   const query = `
-    [out:json][timeout:15];
+    [out:json][timeout:25];
     (
-      node["amenity"="school"](around:${radius},${lat},${lon});
-      way["amenity"="school"](around:${radius},${lat},${lon});
-      node["amenity"="kindergarten"](around:${radius},${lat},${lon});
-      way["amenity"="kindergarten"](around:${radius},${lat},${lon});
-      node["leisure"="park"](around:${radius},${lat},${lon});
-      way["leisure"="park"](around:${radius},${lat},${lon});
-      node["leisure"="playground"](around:${radius},${lat},${lon});
-      node["leisure"="sports_centre"](around:${radius},${lat},${lon});
-      way["leisure"="sports_centre"](around:${radius},${lat},${lon});
-      node["leisure"="pitch"](around:${radius},${lat},${lon});
-      way["leisure"="pitch"](around:${radius},${lat},${lon});
-      node["leisure"="swimming_pool"](around:${radius},${lat},${lon});
-      node["sport"="swimming"](around:${radius},${lat},${lon});
-      node["amenity"="library"](around:${radius},${lat},${lon});
-      node["amenity"="cinema"](around:${radius},${lat},${lon});
-      node["amenity"="theatre"](around:${radius},${lat},${lon});
-      node["tourism"="museum"](around:${radius},${lat},${lon});
-    );
-    out center;
-  `;
-  return queryOverpass(query);
-}
-
-/** ÖPNV: Haltestellen, Bahnhöfe, U-Bahn im Umkreis */
-export async function queryOEPNV(lat: number, lon: number): Promise<OverpassResult> {
-  const query = `
-    [out:json][timeout:15];
-    (
+      // Familie (1500m)
+      node["amenity"="school"](around:1500,${lat},${lon});
+      way["amenity"="school"](around:1500,${lat},${lon});
+      node["amenity"="kindergarten"](around:1500,${lat},${lon});
+      way["amenity"="kindergarten"](around:1500,${lat},${lon});
+      node["leisure"="park"](around:1500,${lat},${lon});
+      way["leisure"="park"](around:1500,${lat},${lon});
+      node["leisure"="playground"](around:1500,${lat},${lon});
+      node["leisure"="sports_centre"](around:1500,${lat},${lon});
+      way["leisure"="sports_centre"](around:1500,${lat},${lon});
+      node["leisure"="pitch"](around:1500,${lat},${lon});
+      way["leisure"="pitch"](around:1500,${lat},${lon});
+      node["leisure"="swimming_pool"](around:1500,${lat},${lon});
+      node["sport"="swimming"](around:1500,${lat},${lon});
+      node["amenity"="library"](around:1500,${lat},${lon});
+      node["amenity"="cinema"](around:1500,${lat},${lon});
+      node["amenity"="theatre"](around:1500,${lat},${lon});
+      node["tourism"="museum"](around:1500,${lat},${lon});
+      // ÖPNV
       node["highway"="bus_stop"](around:500,${lat},${lon});
       node["public_transport"="stop_position"](around:500,${lat},${lon});
       node["railway"="tram_stop"](around:500,${lat},${lon});
@@ -135,18 +119,7 @@ export async function queryOEPNV(lat: number, lon: number): Promise<OverpassResu
       node["railway"="halt"](around:1500,${lat},${lon});
       node["railway"="subway_entrance"](around:800,${lat},${lon});
       node["railway"="station"]["name"~"Hauptbahnhof|Hbf"](around:5000,${lat},${lon});
-    );
-    out center;
-  `;
-  return queryOverpass(query);
-}
-
-/** Aussicht & Umgebung: Positive und negative Faktoren */
-export async function queryAussicht(lat: number, lon: number): Promise<OverpassResult> {
-  const query = `
-    [out:json][timeout:15];
-    (
-      // Positive
+      // Aussicht
       way["natural"="wood"](around:500,${lat},${lon});
       way["landuse"="forest"](around:500,${lat},${lon});
       way["natural"="water"](around:500,${lat},${lon});
@@ -156,7 +129,6 @@ export async function queryAussicht(lat: number, lon: number): Promise<OverpassR
       way["leisure"="nature_reserve"](around:1000,${lat},${lon});
       way["landuse"="farmland"](around:500,${lat},${lon});
       way["landuse"="meadow"](around:500,${lat},${lon});
-      // Negative
       way["highway"="motorway"](around:300,${lat},${lon});
       way["highway"="trunk"](around:300,${lat},${lon});
       way["highway"="primary"](around:150,${lat},${lon});
@@ -183,7 +155,6 @@ export async function queryBuildingDensity(
     out count;
   `;
   const result = await queryOverpass(query);
-  // Overpass "out count" gibt ein Element mit tags.total zurück
   const countEl = result.elements[0];
   return countEl?.tags?.total ? parseInt(countEl.tags.total, 10) : 0;
 }

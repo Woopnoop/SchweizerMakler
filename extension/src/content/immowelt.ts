@@ -30,7 +30,7 @@ function readFirst(...selectors: string[]): string | null {
 function send(data: ListingMessage["data"]): void {
   try {
     chrome.runtime.sendMessage({ type: "LISTING_DETECTED", data } as ListingMessage);
-    console.log("[SchweizerMakler] Immowelt Listing erkannt:", data.title, data.price, "€");
+    console.debug("[SchweizerMakler] Immowelt Listing erkannt:", data.title, data.price, "€");
   } catch { /* */ }
 }
 
@@ -52,7 +52,7 @@ function tryJsonLd(): { price: number; title?: string; location?: string; area?:
         if (price) {
           const numPrice = typeof price === "string" ? parseGermanPrice(price) : Number(price);
           if (numPrice && numPrice > 0) {
-            console.log("[SchweizerMakler] Immowelt: Preis via JSON-LD:", numPrice);
+            console.debug("[SchweizerMakler] Immowelt: Preis via JSON-LD:", numPrice);
             return {
               price: numPrice,
               title: item.name ?? item.headline,
@@ -158,7 +158,7 @@ function findPriceInBody(): number | null {
     if (match) {
       const price = parseGermanPrice(match[1] || match[0]);
       if (price && price > 10) {
-        console.log("[SchweizerMakler] Immowelt: Preis via Body-Regex:", price);
+        console.debug("[SchweizerMakler] Immowelt: Preis via Body-Regex:", price);
         return price;
       }
     }
@@ -171,13 +171,13 @@ function findPriceInBody(): number | null {
 // ============================================================
 
 function debugDump(): void {
-  console.log("[SchweizerMakler] Immowelt DEBUG:");
-  console.log("[SM-DEBUG] document.title:", document.title);
-  console.log("[SM-DEBUG] URL:", window.location.href);
+  console.debug("[SchweizerMakler] Immowelt DEBUG:");
+  console.debug("[SM-DEBUG] document.title:", document.title);
+  console.debug("[SM-DEBUG] URL:", window.location.href);
 
   const ld = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
-  console.log("[SM-DEBUG] JSON-LD:", ld.length);
-  ld.forEach((s, i) => { try { console.log(`[SM-DEBUG] LD#${i}:`, JSON.parse(s.textContent ?? "")); } catch { /* */ } });
+  console.debug("[SM-DEBUG] JSON-LD:", ld.length);
+  ld.forEach((s, i) => { try { console.debug(`[SM-DEBUG] LD#${i}:`, JSON.parse(s.textContent ?? "")); } catch { /* */ } });
 
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const prices: string[] = [];
@@ -186,18 +186,18 @@ function debugDump(): void {
     const t = (node.textContent ?? "").trim();
     if (t.match(/\d.*€|EUR/i) && t.length < 200) prices.push(t);
   }
-  console.log("[SM-DEBUG] Texte mit €:", prices);
+  console.debug("[SM-DEBUG] Texte mit €:", prices);
 
   const headings = Array.from(document.querySelectorAll("h1, h2")).map(h => h.textContent?.trim()).filter(Boolean);
-  console.log("[SM-DEBUG] Überschriften:", headings);
+  console.debug("[SM-DEBUG] Überschriften:", headings);
 
   const testids = Array.from(document.querySelectorAll("[data-testid]")).slice(0, 20).map(el => ({
     id: el.getAttribute("data-testid"),
     text: el.textContent?.trim()?.substring(0, 60),
   }));
-  console.log("[SM-DEBUG] data-testid:", testids);
+  console.debug("[SM-DEBUG] data-testid:", testids);
 
-  console.log("[SM-DEBUG] Body (500):", document.body?.innerText?.substring(0, 500));
+  console.debug("[SM-DEBUG] Body (500):", document.body?.innerText?.substring(0, 500));
 }
 
 // ============================================================
@@ -235,7 +235,7 @@ function tryExtract(): boolean {
   // Methode 2: DOM-Selektoren
   const dom = tryDom();
   if (dom.price) {
-    console.log("[SchweizerMakler] Immowelt: Preis via DOM:", dom.price);
+    console.debug("[SchweizerMakler] Immowelt: Preis via DOM:", dom.price);
     send({
       portal: "immowelt",
       externalId,
@@ -273,20 +273,20 @@ function tryExtract(): boolean {
 
 // Retry (Immowelt lädt per JS nach)
 let attempt = 0;
-const maxAttempts = 5;
+const maxAttempts = 6;
 
 function tryWithDelay(): void {
   attempt++;
-  const delay = 1500 + Math.random() * 1500 + attempt * 1000;
+  const delay = Math.min(attempt * 300, 2500) + Math.random() * 200;
 
   setTimeout(() => {
-    console.log(`[SchweizerMakler] Immowelt: Versuch ${attempt}/${maxAttempts}...`);
+    console.debug(`[SchweizerMakler] Immowelt: Versuch ${attempt}/${maxAttempts}...`);
     const success = tryExtract();
 
     if (!success && attempt < maxAttempts) {
       tryWithDelay();
     } else if (!success) {
-      console.log("[SchweizerMakler] Immowelt: Alle Versuche fehlgeschlagen.");
+      console.debug("[SchweizerMakler] Immowelt: Alle Versuche fehlgeschlagen.");
     }
   }, delay);
 }
@@ -294,6 +294,9 @@ function tryWithDelay(): void {
 // Start
 const path = window.location.pathname;
 if (path.includes("/expose/") || path.match(/\/[a-z0-9]{6,}$/i)) {
-  console.log("[SchweizerMakler] Immowelt Content Script aktiv auf:", window.location.href);
-  tryWithDelay();
+  console.debug("[SchweizerMakler] Immowelt Content Script aktiv auf:", window.location.href);
+  // Sofort versuchen
+  if (!tryExtract()) {
+    tryWithDelay();
+  }
 }

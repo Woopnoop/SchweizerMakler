@@ -1,16 +1,18 @@
 /**
  * Score-Engine: Orchestriert Overpass-Queries, Berechnung und Caching.
- * Wird nur aus dem Background Service Worker aufgerufen.
+ *
+ * OPTIMIERT: Nutzt eine einzige kombinierte Overpass-Query statt 4 separate.
+ * Reduziert API-Calls von 4 auf 2 (1 kombinierte + 1 Gebäudedichte).
  */
 
 import type { StandortScore, ListingMessage } from "../types";
 import { getCachedScore, setCachedScore } from "./cache";
-import { queryFamilyPOIs, queryOEPNV, queryAussicht, queryBuildingDensity, geocodeAddress } from "./overpass";
+import { queryAllPOIs, queryBuildingDensity, geocodeAddress } from "./overpass";
 import { calculateFamilieScore, calculateOepnvScore, calculateAussichtScore } from "./categories";
 
 /**
  * Standort-Score für gegebene Koordinaten berechnen.
- * Prüft zuerst den Cache, dann Overpass-Queries parallel.
+ * 1 kombinierte Overpass-Query + 1 Gebäudedichte-Query (statt 4+1).
  */
 export async function calculateStandortScore(
   lat: number,
@@ -20,23 +22,21 @@ export async function calculateStandortScore(
   const cached = await getCachedScore(lat, lon);
   if (cached) return cached;
 
-  // 2. Overpass-Queries parallel ausführen
-  const [familyResult, oepnvResult, aussichtResult, buildingCount] = await Promise.all([
-    queryFamilyPOIs(lat, lon),
-    queryOEPNV(lat, lon),
-    queryAussicht(lat, lon),
+  // 2. Nur 2 API-Calls statt 4 (kombinierte Query + Gebäudedichte parallel)
+  const [allResult, buildingCount] = await Promise.all([
+    queryAllPOIs(lat, lon),
     queryBuildingDensity(lat, lon, 200),
   ]);
 
-  // 3. Scores berechnen
+  // 3. Scores berechnen — die Elemente werden nach Tags aufgeteilt
   const { score: familieScore, details: familieDetails } =
-    calculateFamilieScore(familyResult.elements);
+    calculateFamilieScore(allResult.elements);
 
   const { score: oepnvScore, details: oepnvDetails } =
-    calculateOepnvScore(oepnvResult.elements, lat, lon);
+    calculateOepnvScore(allResult.elements, lat, lon);
 
   const { score: aussichtScore, details: aussichtDetails } =
-    calculateAussichtScore(aussichtResult.elements, buildingCount);
+    calculateAussichtScore(allResult.elements, buildingCount);
 
   // 4. Gesamt-Score
   const gesamt = Math.round(
@@ -67,17 +67,14 @@ export async function calculateStandortScore(
 
 /**
  * Koordinaten aus Listing-Daten auflösen.
- * Nutzt direkte Koordinaten oder Geocoding via Nominatim.
  */
 export async function resolveCoordinates(
   data: ListingMessage["data"]
 ): Promise<{ lat: number; lon: number } | null> {
-  // Direkte Koordinaten vom Portal
   if (data.lat != null && data.lon != null) {
     return { lat: data.lat, lon: data.lon };
   }
 
-  // Geocoding über Adresse oder Ort
   const address = data.address || data.location;
   if (!address) return null;
 
