@@ -126,7 +126,7 @@ export default function RechnerPage() {
                 id="kaufpreis"
                 type="range"
                 min={50000}
-                max={2000000}
+                max={5000000}
                 step={5000}
                 value={kaufpreis}
                 onChange={(e) => setKaufpreis(Number(e.target.value))}
@@ -134,7 +134,7 @@ export default function RechnerPage() {
               />
               <div className="mt-1 flex justify-between text-xs text-gray-400">
                 <span>50.000 &euro;</span>
-                <span>2.000.000 &euro;</span>
+                <span>5.000.000 &euro;</span>
               </div>
             </div>
 
