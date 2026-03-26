@@ -77,3 +77,13 @@ export function formatPrice(price: number): string {
     maximumFractionDigits: 0,
   });
 }
+
+/** Preis mit €/m² Angabe formatieren: "300.000 € (15 €/m²)" */
+export function formatPriceWithSqm(price: number, areaSqm?: number): string {
+  const priceStr = formatPrice(price);
+  if (areaSqm && areaSqm > 0) {
+    const sqmPrice = Math.round(price / areaSqm);
+    return `${priceStr} (${sqmPrice} €/m²)`;
+  }
+  return priceStr;
+}

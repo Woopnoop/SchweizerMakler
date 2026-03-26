@@ -30,7 +30,12 @@ export function parseGermanPrice(text: string): number | null {
   }
 
   const num = parseFloat(cleaned);
-  return isNaN(num) || num <= 0 ? null : num;
+  if (isNaN(num) || num <= 0) return null;
+
+  // Plausibilitätscheck: Werte unter 50 sind vermutlich €/m²-Preise, keine Immobilienpreise
+  if (num < 50) return null;
+
+  return num;
 }
 
 /** Listing-Typ erkennen (Miete oder Kauf) */

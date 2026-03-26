@@ -27,6 +27,15 @@ function formatPrice(price: number): string {
   }).format(price);
 }
 
+function formatPriceWithSqm(price: number, areaSqm?: number): string {
+  const priceStr = formatPrice(price);
+  if (areaSqm && areaSqm > 0) {
+    const sqmPrice = Math.round(price / areaSqm);
+    return `${priceStr} (${sqmPrice} €/m²)`;
+  }
+  return priceStr;
+}
+
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("de-DE", {
     day: "2-digit",
@@ -104,7 +113,7 @@ export default function LeadsPage() {
     portal: 110,
     title: 350,
     location: 180,
-    price: 110,
+    price: 180,
     type: 80,
     score: 70,
     received: 150,
@@ -257,8 +266,8 @@ export default function LeadsPage() {
                     </td>
 
                     {/* Preis */}
-                    <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-gray-900">
-                      {formatPrice(lead.currentPrice)}
+                    <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
+                      {formatPriceWithSqm(lead.currentPrice, lead.areaSqm)}
                     </td>
 
                     {/* Typ */}

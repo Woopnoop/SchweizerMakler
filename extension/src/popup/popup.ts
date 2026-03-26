@@ -6,7 +6,7 @@
  */
 
 import type { TrackedListing, PortalStatistics, PriceChange, StandortScore } from "../types";
-import { formatPrice, formatPriceChange, calculatePriceChange } from "../utils/diff";
+import { formatPrice, formatPriceWithSqm, formatPriceChange, calculatePriceChange } from "../utils/diff";
 
 declare const __VERSION__: string;
 
@@ -110,7 +110,7 @@ function renderCurrentListing(listing: TrackedListing, priceChange?: PriceChange
 
   const currentPrice = listing.priceHistory[listing.priceHistory.length - 1].price;
   const firstPrice = listing.priceHistory[0].price;
-  setText("current-price", formatPrice(currentPrice));
+  setText("current-price", formatPriceWithSqm(currentPrice, listing.areaSqm));
   setText("first-price", formatPrice(firstPrice));
 
   setText("first-seen", formatDate(listing.firstSeen));
