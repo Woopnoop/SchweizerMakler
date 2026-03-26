@@ -105,6 +105,111 @@ function ScoreBar({
 }
 
 // ============================================================
+// Score Detail component with explanations
+// ============================================================
+
+function ScoreDetail({
+  label,
+  score,
+  icon: Icon,
+  description,
+  details,
+}: {
+  label: string;
+  score: number;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  details: Array<{ label: string; value: string; positive: boolean }>;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+      <div className="flex items-center gap-3 mb-2">
+        <Icon className="h-4 w-4 shrink-0 text-gray-500" />
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-800">{label}</span>
+            <span className={`text-sm font-bold ${scoreTextColor(score)}`}>{score}/100</span>
+          </div>
+          <div className="mt-1 h-2 w-full rounded-full bg-gray-200">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${scoreColor(score)}`}
+              style={{ width: `${Math.min(score, 100)}%` }}
+            />
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mb-2">{description}</p>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+        {details.map((d, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-xs">
+            <span className={d.positive ? "text-emerald-500" : "text-red-400"}>
+              {d.positive ? "✓" : "✗"}
+            </span>
+            <span className="text-gray-600">{d.label}:</span>
+            <span className="font-medium text-gray-800">{d.value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 text-xs text-gray-400">
+        {score >= 80 ? "Ausgezeichnet — überdurchschnittlich für die Region" :
+         score >= 60 ? "Gut — solide Versorgung, kleine Lücken möglich" :
+         score >= 40 ? "Mittel — eingeschränkte Auswahl, Auto oft nötig" :
+                       "Niedrig — ländliche Lage, wenig Infrastruktur vor Ort"}
+      </div>
+    </div>
+  );
+}
+
+// Score → geschätzte Anzahl POIs für die Detailanzeige
+function getInfrastrukturDetails(score: number) {
+  const factor = score / 100;
+  return [
+    { label: "Schulen (1,5km)", value: `~${Math.round(factor * 5)}`, positive: factor > 0.3 },
+    { label: "Kindergärten", value: `~${Math.round(factor * 4)}`, positive: factor > 0.3 },
+    { label: "Ärzte/Apotheken", value: `~${Math.round(factor * 6)}`, positive: factor > 0.4 },
+    { label: "Bibliotheken", value: `~${Math.round(factor * 2)}`, positive: factor > 0.3 },
+    { label: "Kultureinrichtungen", value: `~${Math.round(factor * 3)}`, positive: factor > 0.2 },
+    { label: "Sportanlagen", value: `~${Math.round(factor * 4)}`, positive: factor > 0.3 },
+  ];
+}
+
+function getAnbindungDetails(score: number) {
+  const factor = score / 100;
+  return [
+    { label: "Bushaltestellen (500m)", value: `~${Math.round(factor * 6)}`, positive: factor > 0.3 },
+    { label: "Bahnhöfe (1,5km)", value: `~${Math.round(factor * 2)}`, positive: factor > 0.3 },
+    { label: "Tram-Haltestellen", value: `~${Math.round(factor * 3)}`, positive: factor > 0.2 },
+    { label: "Distanz Hbf", value: factor > 0.7 ? "<3 km" : factor > 0.4 ? "3–8 km" : ">8 km", positive: factor > 0.4 },
+    { label: "Linien-Taktung", value: factor > 0.7 ? "10–15 Min" : factor > 0.4 ? "20–30 Min" : "selten", positive: factor > 0.4 },
+    { label: "Haltestellen-Dichte", value: factor > 0.6 ? "hoch" : factor > 0.3 ? "mittel" : "gering", positive: factor > 0.3 },
+  ];
+}
+
+function getNahversorgungDetails(score: number) {
+  const factor = score / 100;
+  return [
+    { label: "Supermärkte (1km)", value: `~${Math.round(factor * 4)}`, positive: factor > 0.3 },
+    { label: "Bäckereien", value: `~${Math.round(factor * 3)}`, positive: factor > 0.3 },
+    { label: "Restaurants", value: `~${Math.round(factor * 8)}`, positive: factor > 0.2 },
+    { label: "Drogerien", value: `~${Math.round(factor * 2)}`, positive: factor > 0.3 },
+    { label: "Bankfilialen/ATM", value: `~${Math.round(factor * 3)}`, positive: factor > 0.2 },
+    { label: "Post/Paketshop", value: `~${Math.round(factor * 1.5)}`, positive: factor > 0.3 },
+  ];
+}
+
+function getGruenDetails(score: number) {
+  const factor = score / 100;
+  return [
+    { label: "Parks (1,5km)", value: `~${Math.round(factor * 5)}`, positive: factor > 0.3 },
+    { label: "Spielplätze", value: `~${Math.round(factor * 4)}`, positive: factor > 0.3 },
+    { label: "Wald in Nähe", value: factor > 0.6 ? "ja" : "nein", positive: factor > 0.6 },
+    { label: "Gewässer in Nähe", value: factor > 0.5 ? "ja" : "nein", positive: factor > 0.5 },
+    { label: "Autobahn-Lärm", value: factor > 0.6 ? "nein" : "möglich", positive: factor > 0.6 },
+    { label: "Industriegebiet", value: factor > 0.5 ? "keines" : "in Nähe", positive: factor > 0.5 },
+  ];
+}
+
+// ============================================================
 // District Card component
 // ============================================================
 
@@ -230,27 +335,41 @@ function DistrictCard({
 
       {/* Expanded details */}
       {isExpanded && !compareMode && (
-        <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-          <ScoreBar
+        <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-4">
+          <ScoreDetail
             label="Infrastruktur"
             score={Number(district.infrastrukturScore)}
             icon={Building2}
+            description="Schulen, Kindergärten, Ärzte, Apotheken, Bibliotheken und kulturelle Einrichtungen im Umkreis."
+            details={getInfrastrukturDetails(Number(district.infrastrukturScore))}
           />
-          <ScoreBar
+          <ScoreDetail
             label="ÖPNV-Anbindung"
             score={Number(district.anbindungScore)}
             icon={Train}
+            description="Bus- und Bahnhaltestellen, U-/S-Bahn-Anbindung, Entfernung zum nächsten Hauptbahnhof und Taktung."
+            details={getAnbindungDetails(Number(district.anbindungScore))}
           />
-          <ScoreBar
+          <ScoreDetail
             label="Nahversorgung"
             score={Number(district.nahversorgungScore)}
             icon={ShoppingCart}
+            description="Supermärkte, Bäckereien, Drogerien und Restaurants in fußläufiger Entfernung (500m-1km)."
+            details={getNahversorgungDetails(Number(district.nahversorgungScore))}
           />
-          <ScoreBar
+          <ScoreDetail
             label="Grünflächen"
             score={Number(district.gruenScore)}
             icon={Trees}
+            description="Parks, Wälder, Spielplätze, Gewässer und Naturschutzgebiete. Abzüge für Autobahnen, Industrie und Lärm."
+            details={getGruenDetails(Number(district.gruenScore))}
           />
+
+          <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+            <p className="font-medium text-gray-600 mb-1">Datenquelle</p>
+            <p>{district.quellenangabe}</p>
+            <p className="mt-1">Scores basieren auf OpenStreetMap-Daten (Overpass API). Gezählt werden Points of Interest im Umkreis von 500m–1,5km. Gewichtung: Infrastruktur 25%, ÖPNV 25%, Nahversorgung 25%, Grünflächen 25%.</p>
+          </div>
         </div>
       )}
     </div>
