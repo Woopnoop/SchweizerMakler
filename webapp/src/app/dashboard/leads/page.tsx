@@ -192,8 +192,8 @@ export default function LeadsPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto max-h-[calc(100vh-250px)] overflow-y-auto">
             <table className="divide-y divide-gray-200" style={{ tableLayout: "fixed" }}>
               <thead className="bg-gray-50">
                 <tr>
