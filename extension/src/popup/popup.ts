@@ -275,15 +275,15 @@ function renderStatistics(stats: PortalStatistics): void {
       <div class="stat-label">Gesamt</div>
     </div>
     <div class="stat-item">
-      <div class="stat-value">${stats.kleinanzeigen}</div>
-      <div class="stat-label">Kleinanzeigen</div>
+      <div class="stat-value">${stats.immoscout}</div>
+      <div class="stat-label">ImmobilienScout24</div>
     </div>
     <div class="stat-item">
-      <div class="stat-value">${stats["wg-gesucht"]}</div>
-      <div class="stat-label">WG-Gesucht</div>
+      <div class="stat-value">${stats.immowelt}</div>
+      <div class="stat-label">Immowelt</div>
     </div>
     <div class="stat-item">
-      <div class="stat-value">${stats.immowelt + stats.immoscout}</div>
+      <div class="stat-value">${stats.kleinanzeigen + stats["wg-gesucht"]}</div>
       <div class="stat-label">Andere</div>
     </div>
   `;
