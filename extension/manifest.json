@@ -13,7 +13,8 @@
     "https://nominatim.openstreetmap.org/*",
     "http://localhost:3000/*",
     "https://webapp-alpha-wheat.vercel.app/*",
-    "http://91.107.232.255/*"
+    "http://91.107.232.255/*",
+    "https://makler.code-fox.com/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",

@@ -303,7 +303,7 @@ function setupToolkitButton(listing: TrackedListing): void {
 
     try {
       const currentPrice = listing.priceHistory[listing.priceHistory.length - 1].price;
-      const response = await fetch("http://91.107.232.255/api/leads", {
+      const response = await fetch("https://makler.code-fox.com/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
