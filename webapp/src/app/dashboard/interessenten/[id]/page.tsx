@@ -50,6 +50,20 @@ interface MatchedObjekt {
   matchReasons: string[];
 }
 
+interface MatchedLead {
+  id: string;
+  portal: string;
+  title: string;
+  url: string;
+  location: string;
+  currentPrice: number;
+  areaSqm: number | null;
+  rooms: number | null;
+  listingType: string;
+  matchScore: number;
+  matchReasons: string[];
+}
+
 interface EditFormData {
   vorname: string;
   nachname: string;
@@ -75,6 +89,7 @@ export default function InteressentDetailPage() {
 
   const [data, setData] = useState<Interessent | null>(null);
   const [matches, setMatches] = useState<MatchedObjekt[]>([]);
+  const [leadMatches, setLeadMatches] = useState<MatchedLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -122,7 +137,8 @@ export default function InteressentDetailPage() {
       const res = await fetch(`/api/interessenten/${id}/matching`);
       if (!res.ok) throw new Error("Fehler beim Laden");
       const json = await res.json();
-      setMatches(json.data);
+      setMatches(json.data ?? []);
+      setLeadMatches(json.leads ?? []);
     } catch {
       // silently ignore — matching is supplementary
     } finally {
@@ -669,6 +685,75 @@ export default function InteressentDetailPage() {
                   </span>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Matching Leads (from Extension) */}
+      <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <svg className="h-5 w-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+          Passende Leads
+          <span className="text-xs font-normal text-gray-500">(aus Browser-Extension)</span>
+        </h3>
+
+        {matchesLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+          </div>
+        ) : leadMatches.length === 0 ? (
+          <p className="text-sm text-gray-500 py-4">
+            Keine passenden Leads gefunden. Senden Sie Immobilien über die Browser-Extension.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {leadMatches.map((lead) => (
+              <a
+                key={lead.id}
+                href={lead.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start justify-between gap-4 rounded-lg border border-gray-100 p-4 hover:border-purple-200 hover:bg-purple-50/30 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800">
+                      {lead.portal}
+                    </span>
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {lead.title}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-gray-500">
+                    <span>{lead.currentPrice.toLocaleString("de-DE")} €</span>
+                    {lead.areaSqm && <span>{lead.areaSqm} m²</span>}
+                    {lead.rooms && <span>{lead.rooms} Zimmer</span>}
+                    {lead.location && <span>{lead.location}</span>}
+                    {lead.areaSqm && lead.currentPrice > 0 && (
+                      <span className="text-gray-400">({Math.round(lead.currentPrice / lead.areaSqm)} €/m²)</span>
+                    )}
+                  </div>
+                  {lead.matchReasons.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {lead.matchReasons.map((reason) => (
+                        <span key={reason} className="rounded-full bg-purple-50 px-2 py-0.5 text-xs text-purple-700">
+                          {reason}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-shrink-0">
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+                    lead.matchScore >= 75 ? "bg-green-100 text-green-800" :
+                    lead.matchScore >= 50 ? "bg-yellow-100 text-yellow-800" :
+                    "bg-orange-100 text-orange-800"
+                  }`}>
+                    {lead.matchScore}%
+                  </span>
+                </div>
+              </a>
             ))}
           </div>
         )}
