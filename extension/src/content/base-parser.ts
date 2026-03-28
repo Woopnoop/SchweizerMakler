@@ -12,8 +12,8 @@
 import type { ListingMessage } from "../types";
 
 /**
- * Anti-Detection: DOM-Read erst ausführen wenn der Browser idle ist.
- * Zufälliges Timing verhindert Fingerprinting.
+ * Performance-Optimierung: DOM-Read erst ausführen wenn der Browser idle ist.
+ * Zufälliges Timing für natürliches Nutzungsverhalten.
  */
 export function waitForIdle(callback: () => void): void {
   if ("requestIdleCallback" in window) {

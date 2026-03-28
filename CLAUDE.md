@@ -15,7 +15,7 @@ Vollständige Implementierungsspec: `Docs/Prompt.md`. Rechtsanalyse-Verweis: `Do
 
 Alle Entwickler MÜSSEN folgende Regeln einhalten. Verstöße können zu Abmahnungen/Vertragsstrafen führen.
 
-### Browser-Extension: Erkennungsschutz
+### Browser-Extension: DOM-Richtlinien
 
 **VERBOTEN:**
 - DOM der Zielwebseite verändern (kein Overlay, kein injiziertes HTML/CSS, kein `document.createElement()`, kein `classList.add()`)
@@ -31,10 +31,10 @@ Alle Entwickler MÜSSEN folgende Regeln einhalten. Verstöße können zu Abmahnu
 - Daten via `chrome.runtime.sendMessage()` an Background Service Worker senden
 - Anzeige über Popup, Sidebar-Panel oder Badge auf dem Extension-Icon
 
-**ANTI-DETECTION PFLICHT:**
-- Alle DOM-Reads in `requestIdleCallback()` oder `setTimeout()` wrappen (Timing-Fingerprinting vermeiden)
-- Keine deterministischen Timing-Patterns (zufällige Delays verwenden)
-- Content Scripts laufen in `world: "ISOLATED"` (Manifest V3) — keinen Zugriff auf `window`-Variablen der Seite
+**PERFORMANCE-OPTIMIERUNG:**
+- Alle DOM-Reads in `requestIdleCallback()` oder `setTimeout()` wrappen (ressourcenschonend, vermeidet Seiten-Blockierung)
+- Zufällige Delays verwenden (natürliches Nutzerverhalten nachbilden)
+- Content Scripts laufen in `world: "ISOLATED"` (Manifest V3) — saubere Trennung vom Seiten-Kontext
 
 **DATEN:**
 - **Nur lokale Speicherung** — `chrome.storage.local` (kein Sync!), kein zentraler Server, keine geteilte Datenbank

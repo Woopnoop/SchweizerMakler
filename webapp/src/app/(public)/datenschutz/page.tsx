@@ -239,9 +239,87 @@ export default function DatenschutzPage() {
         </p>
       </section>
 
+      {/* Browser-Extension */}
+      <section className="mt-10">
+        <h2 className="text-xl font-semibold text-gray-900">
+          8. Browser-Extension (SchweizerMakler Preis-Tracker)
+        </h2>
+        <p className="mt-4 text-gray-700 leading-relaxed">
+          Die Browser-Extension speichert alle Daten <strong>ausschließlich
+          lokal</strong> in Ihrem Browser (chrome.storage.local). Es werden
+          keine Daten automatisch an unsere Server oder an Dritte übertragen.
+        </p>
+        <ul className="mt-4 list-disc pl-6 space-y-2 text-gray-700">
+          <li>
+            <strong>Gespeicherte Daten:</strong> Immobilienpreise, Adressen,
+            Wohnfläche, Zimmeranzahl von Seiten die Sie manuell besuchen
+          </li>
+          <li>
+            <strong>Keine Personendaten:</strong> Es werden keine Namen,
+            E-Mail-Adressen oder Telefonnummern von Inserenten gespeichert
+          </li>
+          <li>
+            <strong>Freiwilliger Export:</strong> Nur wenn Sie aktiv auf
+            &ldquo;An MaklerToolkit senden&rdquo; klicken, werden Listing-Daten
+            (Preis, Titel, Ort) an unseren Server übermittelt
+          </li>
+          <li>
+            <strong>Löschung:</strong> Sie können alle gespeicherten Daten
+            jederzeit über die Extension-Einstellungen löschen
+          </li>
+        </ul>
+      </section>
+
+      {/* Leads */}
+      <section className="mt-10">
+        <h2 className="text-xl font-semibold text-gray-900">
+          9. Leads (vom Plugin übermittelte Immobilien)
+        </h2>
+        <p className="mt-4 text-gray-700 leading-relaxed">
+          Wenn Sie Immobiliendaten aus der Browser-Extension an das
+          MaklerToolkit senden, werden folgende Daten auf unserem Server
+          gespeichert:
+        </p>
+        <ul className="mt-4 list-disc pl-6 space-y-2 text-gray-700">
+          <li>Portal-Name, Anzeigen-URL, Titel, Ort, Preis, Wohnfläche, Zimmeranzahl</li>
+          <li>Preishistorie (Zeitstempel + Preis bei jedem Besuch)</li>
+          <li>Von Ihnen hinzugefügte Notizen</li>
+        </ul>
+        <p className="mt-4 text-gray-700 leading-relaxed">
+          Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).
+          Sie können Leads jederzeit einzeln löschen oder Ihren gesamten
+          Account löschen (Einstellungen → DSGVO).
+        </p>
+      </section>
+
+      {/* Auftragsverarbeitung */}
+      <section className="mt-10">
+        <h2 className="text-xl font-semibold text-gray-900">
+          10. Hosting und Auftragsverarbeitung
+        </h2>
+        <p className="mt-4 text-gray-700 leading-relaxed">
+          Unser Dienst wird auf Servern der Hetzner Online GmbH
+          (Industriestr. 25, 91710 Gunzenhausen, Deutschland) gehostet.
+          Hetzner verarbeitet Daten ausschließlich in Deutschland und
+          unterliegt der DSGVO. Es besteht ein Auftragsverarbeitungsvertrag
+          gemäß Art. 28 DSGVO.
+        </p>
+        <p className="mt-2 text-gray-700 leading-relaxed">
+          Datenschutzhinweis Hetzner:{" "}
+          <a
+            href="https://www.hetzner.com/de/legal/privacy-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--brand)] underline hover:no-underline"
+          >
+            www.hetzner.com/de/legal/privacy-policy
+          </a>
+        </p>
+      </section>
+
       {/* Cookies */}
       <section className="mt-10">
-        <h2 className="text-xl font-semibold text-gray-900">8. Cookies</h2>
+        <h2 className="text-xl font-semibold text-gray-900">11. Cookies</h2>
         <p className="mt-4 text-gray-700 leading-relaxed">
           Diese Website verwendet ausschließlich technisch notwendige Cookies,
           die für den Betrieb des Dienstes erforderlich sind:
